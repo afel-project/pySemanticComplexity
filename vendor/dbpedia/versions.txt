@@ -1,0 +1,3 @@
+Versions & sources:
+dbpedia.nt: 2014, http://downloads.dbpedia.org/current/dbpedia_2016-10.nt   
+schema.nt: 3.4, downloaded from https://schema.org/docs/developers.html#defs

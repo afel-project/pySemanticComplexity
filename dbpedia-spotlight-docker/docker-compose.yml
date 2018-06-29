@@ -1,0 +1,10 @@
+version: '3.2'
+#Service declaration
+services:
+  spotlight:
+    build:
+      context: ./
+    ports:
+      - "80:2222"
+        #Redefinition de la commande de lancement
+    command: java -Dfile.encoding=UTF-8 -Xmx2G -jar /opt/spotlight/dbpedia-spotlight-0.7.1.jar /opt/spotlight/en_2+2 http://0.0.0.0:80/rest
