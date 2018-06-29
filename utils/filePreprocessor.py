@@ -12,7 +12,7 @@ class TextPreprocessor:
             [chr(i) for i in range(0x80, 0x9f)]) + ']')
     _PARAGRAPH_FILTER = re.compile('\n\n')
 
-    def __init__(self, sentence_tokenizer: Any=None, paragraph_threshold: int = 150):
+    def __init__(self, sentence_tokenizer: Any = None, paragraph_threshold: int = 150):
         """
         Constructor
         :param sentence_tokenizer: a sentences_tokenizer that provide a tokenize(t:str)->[str] method

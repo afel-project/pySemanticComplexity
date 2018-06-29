@@ -17,18 +17,21 @@ class PrintGraph(BatchProcess):
     _NAMESPACES = {
         'DBPedia': re.compile('^http://dbpedia.org/ontology/'),
         'Schema': re.compile('^http://schema.org/'),
+        'yago': re.compile('^http://dbpedia.org/class/yago/'),
         'ROOT': re.compile('^#AbstractConcept#')
     }
 
     _NS_COLORS = {
         'DBPedia': 'red',
         'Schema': 'blue',
+        'yago': 'purple',
         'ROOT': 'black',
     }
     _DFLT_COLOR = 'green'
 
-    def __init__(self):
-        super().__init__(use_logger=False)
+    def __init__(self, *largs, **kwargs):
+        kwargs['use_logger'] = False
+        super().__init__(*largs, **kwargs)
 
     def _configure_args(self, parser: ArgumentParser) -> ArgumentParser:
         parser.description = "Draw a concepts graph using pyplot engine. Require Matplotlib to be installed."
@@ -52,9 +55,14 @@ class PrintGraph(BatchProcess):
 
         f = plt.figure(figsize=(14, 7))
         # draw_networkx
+        # nx.draw_networkx(graph,
+        #                  node_size=100, node_color=colors,
+        #                  with_labels=True, labels=names, font_size=8,
+        #                  edge_color='grey'
+        #                  )
         nx.draw_networkx(graph,
                          node_size=100, node_color=colors,
-                         with_labels=True, labels=names, font_size=8,
+                         with_labels=False,
                          edge_color='grey'
                          )
         f.show()

@@ -23,7 +23,7 @@ from utils.filePreprocessor import TextPreprocessor
 
 LOG = logging.getLogger(__name__)
 
-__all__ = ['Texts2VectorsRunner']
+__all__ = ['Texts2Vectors']
 
 
 class Texts2VectorsRunner(metaclass=ABCMeta):
@@ -31,18 +31,23 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
     @classmethod
     def process_files_to_vectors(cls, dir_in: str, out_file: str, spotlight_ep: str, num_cores: int, ext_in: str,
                                  confidence: float, sparql_ep: str, max_concepts: int, nice_server: bool,
-                                 concept_type_filename: str, graphs_dir: str, backend: str = "threading"):
+                                 concept_type_filename: str, ontology_keys: Set[str], graphs_dir: str,
+                                 backend: str = "threading"):
         # Before going further, test the existence of dirs, and the possibility to write documents
-        LOG.info("1/5: Checking directories and files rights...")
+        LOG.info("1/6: Checking directories and files rights...")
         cls._check_rights(dir_in, out_file, concept_type_filename, graphs_dir)
 
         # Create the different composants required to the transformation
-        LOG.info("2: Create transformer component")
+        LOG.info("2/6: Create transformer component")
         text_processor = TextPreprocessor()  # Preprocessing of texts
         client = DBpediaSpotlightClient(spotlight_ep)  # Spotlight client
         retriever = ConceptTypeRetriever(sparql_ep, max_concepts, nice_server)  # types retriever
         graph_builder_factory = GraphBuilderFactory()  # GraphBuilder factory
-        graph_builder_factory.build_default_ontology_manager()  # Initialisation of the ontology manager
+        LOG.info("Creating ontology manager (Can take time...)")
+        graph_builder_factory.default_ontology_manager = \
+            graph_builder_factory.build_default_ontology_manager(ontology_keys)
+        LOG.info("Ontology manager will used these ontologies: %s" %
+                 str(graph_builder_factory.default_ontology_manager.get_ontology_keys()))
         graph_transformer = GraphTransformer()  # Graph transformer
 
         # Create a list of text files and a list of simple text file name that will be used in different functions
@@ -50,12 +55,12 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
         input_files_names = [os.path.splitext(os.path.split(file)[1])[0] for file in input_files]
 
         # Compute entities of each files
-        LOG.info("2/5: Clean texts and detect DBpedia entities from them...")
+        LOG.info("3/6: Clean texts and detect DBpedia entities from them...")
         entities_list, entity_set = cls._process_files_to_entities(input_files, text_processor, client, confidence,
                                                                    num_cores, backend)
 
         # Compute a entity - type mapping set
-        LOG.info("3/5: Retrieve types for all entities...")
+        LOG.info("4/6: Retrieve types for all entities...")
         concepts_types = cls._retrieve_concepts_types(entity_set, retriever)
 
         # Save some memory: delete the entity_set and the input_files list
@@ -70,7 +75,7 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
                 json.dump(concepts_types, f)
 
         # Create graphs for each list of entities (and save them if required)
-        LOG.info("4/5: Create graphs of concept for each texts, and vectorize them...")
+        LOG.info("5/6: Create graphs of concept for each texts, and vectorize them...")
         # If saving graph is required, create a list of out files
         if graphs_dir is not None:
             LOG.info("Will save the graph files...")
@@ -89,7 +94,7 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
         gc.collect()
 
         # Save the dataframe
-        LOG.info("5/5: Save the vectors")
+        LOG.info("6/6: Save the vectors")
         dataset.to_csv(out_file, index=False)
 
     @classmethod
@@ -157,6 +162,7 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
         """Create graph for each entities lists corresponding to each text files.
         Save them in json files if required."""
         # Create the graph builder based on  the concepts-types dictionnary
+        LOG.info("Creating the graph builder...")
         graph_builder = graph_builder_factory.build_networkx_graph_builer(concepts_types=concept_types)
 
         # Create graph and vectors in parrallel of each couple entities - out_file (out_file might be null)
@@ -222,6 +228,8 @@ extension) and the several complexity features."""
         parser.add_argument('--save-types',
                             help='Save the entity-types mapping dictionnary to a json file (default: No)',
                             metavar='<Json File>', type=str, default=None)
+        parser.add_argument('-on', '--ontology', help='Ontologies to used (Default: all)', type=str, action='append',
+                            choices=GraphBuilderFactory.get_available_default_ontology_keys(), default=[])
         parser.add_argument('--save-graphs', help='Save the several graphs as json files into a directory',
                             metavar='<Graphs Directory>', type=str, default=None)
         return parser
@@ -230,5 +238,5 @@ extension) and the several complexity features."""
         Texts2VectorsRunner.process_files_to_vectors(args.data_in_dir, args.out_file, args.spotlight_ep,
                                                      args.num_cores, args.ext_in, args.confidence, args.sparql_ep,
                                                      args.max_concepts, args.nice_server, args.save_types,
-                                                     args.save_graphs)
+                                                     args.ontology, args.save_graphs)
         return

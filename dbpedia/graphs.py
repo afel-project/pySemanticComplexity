@@ -2,12 +2,11 @@
 """Concept graph manipulation package. Provides classes to manage concepts RDF ontologies, concepts graphs and
 to operate on graphs."""
 import logging
-import os
 import ujson as json
 from abc import abstractmethod, ABCMeta
 from collections import Counter
 from itertools import chain
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Union, Set, Iterable
 
 import networkx as nx
 import numpy as np
@@ -15,7 +14,7 @@ from rdflib import Graph as rdfGraph
 from rdflib import Namespace, URIRef, RDFS
 from sklearn.base import BaseEstimator
 
-from utils.commons import VENDOR_DIR_PATH
+from utils.commons import AVAILABLE_ONTOLOGIES, Ontology, ModuleShutUpWarning
 from .entities import DBpediaResource
 
 __all__ = ['OntologyManager', 'GraphBuilder', 'NetworkXGraphBuilder', 'GraphBuilderFactory', 'GraphTransformer']
@@ -30,6 +29,9 @@ class OntologyManager:
         self._managed_namespaces = {}
         self._managed_ontologies_files = {}
         self._reference_graph: rdfGraph = None
+
+    def get_ontology_keys(self) -> Iterable[str]:
+        return list(self._managed_namespaces.keys())
 
     def add_ontology(self, key: str, namespace_uri: str, filename: str, file_format: str = 'nt') -> 'OntologyManager':
         self._managed_namespaces[key] = Namespace(namespace_uri)
@@ -46,44 +48,54 @@ class OntologyManager:
         g = rdfGraph()
         for key, namespace in self._managed_namespaces.items():
             g.bind(key, namespace)
-        for filename, file_format in self._managed_ontologies_files.values():
-            try:
-                g.parse(filename, format=file_format)
-            except FileNotFoundError as e:
-                LOG.fatal("Missing onotlogy file '%s'" % filename)
-                raise e
+        with ModuleShutUpWarning('rdflib'):
+            for filename, file_format in self._managed_ontologies_files.values():
+                try:
+                    g.parse(filename, format=file_format)
+                except FileNotFoundError as e:
+                    LOG.fatal("Missing onotlogy file '%s'" % filename)
+                    raise e
         self._reference_graph = g
         return self
 
-    def str_to_managed_uriref(self, ref: str) -> Optional[URIRef]:
-        assert self._reference_graph is not None
-        # 1st test : FQDN uri is given,  and belong to one of the managed namespaces
-        # 2nd test : qname is already given, and belong to one of the managed namespaces
-        potential_qnames = [ref]
-        try:
-            potential_qnames.append(self._reference_graph.qname(ref.split('(', 1)[0]))
-        except Exception:  # We know it is too broad, but it is implemented this way in rdflib.
-            LOG.warning("Cannot get qname from %s" % ref)
-            pass
-        for qname in potential_qnames:
-            qn_prefix, qn_suffix = qname.split(':', 1)
-            if qn_prefix in self._managed_namespaces.keys():
-                return self._managed_namespaces[qn_prefix].term(qn_suffix)
+    def str_to_managed_uriref(self, ref: str, namespace_key: str = None) -> Optional[Union[str, URIRef]]:
+        """
+        If namespace_key is given, attemps to provide the suffix of the ref is it belongs to the namespace,
+        None otherwise. If namespace_key is None, return the best candidate as a URIRef: an UriRef whose the namespace
+        prefix fits the ref and the suffix is the smallest of all candidates. Return None if no candidates have been
+        found.
+        :param ref: the uri or the qname
+        :param namespace_key: the key of the namespace
+        :return: None or the URIRef if namespace_key is None, None or ref suffix otherwise
+        """
+        if namespace_key is not None:
+            namespace = self._managed_namespaces[namespace_key]
+            # Test if ref starts with the namespace key and :
+            if ref.startswith(namespace_key + ':'):
+                return ref[len(namespace_key) + 1:]
+            elif ref.startswith(namespace):
+                return ref[len(namespace):]
+            else:
+                return None
         else:
-            return None
+            # test ref with all namespaces
+            candidates = ((namespace, self.str_to_managed_uriref(ref, ns_key))
+                          for ns_key, namespace in self._managed_namespaces.items())
+            # Keep candidates only
+            candidates = filter(lambda x: x[1] is not None, candidates)
+            # Sort candidates by the length and take the first one
+            candidates = sorted(candidates, key=lambda x: len(x[1]))
+            if candidates:
+                namespace, suffix = candidates[0]
+                return namespace.term(suffix)
+            else:
+                return None
 
     def does_ref_belong_to_namespaces(self, ref: str) -> bool:
         return self.str_to_managed_uriref(ref) is not None
 
     def does_ref_belong_to_namespace(self, ref: str, namespace_key: str) -> bool:
-        assert namespace_key in self._managed_namespaces
-        potential_qnames = [ref]
-        try:
-            potential_qnames.append(self._reference_graph.qname(ref.split('(', 1)[0]))
-        except Exception:  # We know it is too broad, but it is implemented this way in rdflib.
-            LOG.warning("Cannot test qname from %s" % ref)
-            pass
-        return any(qname.split(':', 1)[0] == namespace_key for qname in potential_qnames)
+        return self.str_to_managed_uriref(ref, namespace_key) is not None
 
     def generate_parents(self, cl: URIRef, namespace_key: str = None) -> [URIRef]:
         parents = self._reference_graph.objects(cl, RDFS.subClassOf)
@@ -323,27 +335,48 @@ class Singleton(type):
 
 class GraphBuilderFactory(metaclass=Singleton):
     def __init__(self):
-        self._default_ontology_manager: OntologyManager = None
+        self._default_om = None
 
-    def build_networkx_graph_builer(self, ontology_manager: OntologyManager = None,
-                                    concepts_types: dict = None) -> NetworkXGraphBuilder:
+    @property
+    def default_ontology_manager(self) -> OntologyManager:
+        return self._default_om
+
+    @default_ontology_manager.setter
+    def default_ontology_manager(self, ontology_manager: OntologyManager):
+        self._default_om = ontology_manager
+
+    @default_ontology_manager.deleter
+    def default_ontology_manager(self):
+        raise ValueError("Cannot delete ontology manager from the graph builder factory.")
+
+    def build_networkx_graph_builer(self, ontology_manager: OntologyManager = None, concepts_types: dict = None) \
+            -> NetworkXGraphBuilder:
         if ontology_manager is None:
-            if self._default_ontology_manager is None:
-                self.build_default_ontology_manager()
-            ontology_manager = self._default_ontology_manager
+            if self._default_om is None:
+                raise ValueError("Cannot build graph builder: ontology manager missing")
+            else:
+                ontology_manager = self._default_om
         return NetworkXGraphBuilder(ontology_manager, concepts_types)
 
-    def build_default_ontology_manager(self):
-        self._default_ontology_manager = self._build_default_ontology_manager()
+    @staticmethod
+    def get_available_default_ontology_keys():
+        return [o.key for o in AVAILABLE_ONTOLOGIES]
 
     @staticmethod
-    def _build_default_ontology_manager() -> OntologyManager:
-        return OntologyManager() \
-            .add_ontology(key='DBPedia', namespace_uri="http://dbpedia.org/ontology/",
-                          filename=os.path.join(VENDOR_DIR_PATH, "dbpedia/dbpedia.nt")) \
-            .add_ontology(key='Schema', namespace_uri="http://schema.org/",
-                          filename=os.path.join(VENDOR_DIR_PATH, "dbpedia/schema.nt")) \
-            .build_graph()
+    def build_default_ontology_manager(ontology_keys: Set[str] = None) -> OntologyManager:
+        ontologies = AVAILABLE_ONTOLOGIES if not ontology_keys \
+            else [o for o in AVAILABLE_ONTOLOGIES if o.key in ontology_keys]
+        om = OntologyManager()
+        for o in ontologies:
+            om.add_ontology(key=o.key, namespace_uri=o.uri_base, filename=o.filename, file_format=o.file_format)
+        return om.build_graph()
+
+    @staticmethod
+    def build_ontology_manager(ontologies: Set[Ontology]) -> OntologyManager:
+        om = OntologyManager()
+        for o in ontologies:
+            om.add_ontology(key=o.key, namespace_uri=o.uri_base, filename=o.filename, file_format=o.file_format)
+        return om.build_graph()
 
 
 class GraphTransformer(BaseEstimator):

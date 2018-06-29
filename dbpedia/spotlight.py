@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Provides client to DBPedia Spotlight API."""
 import logging
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import requests as rqst
 
@@ -50,7 +50,7 @@ class DBpediaSpotlightClient:
                                                      for item in raw_res.get('Resources', []))))
 
     @staticmethod
-    def _build_resource_annotation(json_item: dict) -> Tuple[DBpediaResource, AnnotationScore]:
+    def _build_resource_annotation(json_item: dict) -> Optional[Tuple[DBpediaResource, AnnotationScore]]:
         if '@URI' not in json_item:
             return None
 

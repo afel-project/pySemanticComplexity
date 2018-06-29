@@ -50,7 +50,8 @@ ORDER BY ?subject ?type
         data = None
 
         if len(concepts) > self.max_concepts_per_query:
-            LOG.info("Too many concepts, splitting them in group of %d..." % self.max_concepts_per_query)
+            LOG.info("Too many concepts (%d), splitting them in group of %d..."
+                     % (len(concepts), self.max_concepts_per_query))
             if isinstance(concepts, set):
                 concepts = list(concepts)
             for sub_concepts in (concepts[x:x + self.max_concepts_per_query] for x in

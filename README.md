@@ -41,6 +41,11 @@ An automatic installation of the packages can be achieved by the following comma
 
 __Working with a virtual environment is recommended.__
 
+## 4. Setup
+
+- Go to vendor/dbpedia and decompress yago_taxonomy.ttl.bz2 into yago_taxonomy.ttl within the same directory
+- Install the python dependencies if it is not already done (see section 2. of this document)
+
 ## 3. Use of the analyzer
 The analyzer can be launched from a terminal. Inside the repository folder, one can run the following command to get the help:
 

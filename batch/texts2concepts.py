@@ -78,7 +78,7 @@ class Texts2Concepts(BatchProcess):
         parser.add_argument('-nc', '--num-cores', help='Number of cores (default: 1)', type=int, default=1)
         return parser
 
-    def _run(self, args: Namespace) ->  Optional[int]:
+    def _run(self, args: Namespace) -> Optional[int]:
         client = DBpediaSpotlightClient(args.endpoint)
         text_processor = TextPreprocessor()
         self._logger.info("Start working...")

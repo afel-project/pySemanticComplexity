@@ -7,11 +7,24 @@ import sys
 import traceback
 from abc import ABCMeta, abstractmethod
 from argparse import ArgumentParser, Namespace
+from collections import namedtuple
 from typing import Optional
 
-__all__ = ['BatchProcess', 'VENDOR_DIR_PATH', 'file_can_be_write']
+__all__ = ['BatchProcess', 'VENDOR_DIR_PATH', 'Ontology', 'AVAILABLE_ONTOLOGIES', 'file_can_be_write',
+           'ModuleShutUpWarning']
 
 VENDOR_DIR_PATH = './vendor'
+
+Ontology = namedtuple('Ontology', ['key', 'uri_base', 'filename', 'file_format'])
+
+AVAILABLE_ONTOLOGIES = [
+    Ontology(key='DBPedia', uri_base="http://dbpedia.org/ontology/",
+             filename=os.path.join(VENDOR_DIR_PATH, "dbpedia/dbpedia.nt"), file_format='nt'),
+    Ontology(key='Schema', uri_base="http://schema.org/",
+             filename=os.path.join(VENDOR_DIR_PATH, "dbpedia/schema.nt"), file_format='nt'),
+    Ontology(key='yago', uri_base="http://dbpedia.org/ontology/",
+             filename=os.path.join(VENDOR_DIR_PATH, "dbpedia/yago_taxonomy.ttl"), file_format='n3'),
+]
 
 
 def file_can_be_write(filename: str) -> bool:
@@ -48,7 +61,7 @@ class BatchProcess(metaclass=ABCMeta):
         """
         pass
 
-    def _configure_logging(self, configuration_file: str = None, level: int = logging.INFO, debug: bool= False):
+    def _configure_logging(self, configuration_file: str = None, level: int = logging.INFO, debug: bool = False):
         """
         Configure le logging
         :param configuration_file: a configuration file path
@@ -102,3 +115,16 @@ class BatchProcess(metaclass=ABCMeta):
             sys.exit(0)
         else:
             sys.exit(ret)
+
+
+class ModuleShutUpWarning:
+    def __init__(self, module: str, shut_level: int = logging.ERROR):
+        self.__rdf_logger = logging.getLogger(module)
+        self.__shut_level = shut_level
+
+    def __enter__(self):
+        self.__previous_level = self.__rdf_logger.level
+        self.__rdf_logger.setLevel(self.__shut_level)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.__rdf_logger.setLevel(self.__previous_level)

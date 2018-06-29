@@ -54,7 +54,7 @@ class ConceptsTypesScrapper(BatchProcess):
                             action='store_false')
         return parser
 
-    def _run(self, args: Namespace) ->  Optional[int]:
+    def _run(self, args: Namespace) -> Optional[int]:
         # do a little try to avoid write error at the end
         f = open(args.out_file, 'w')
         f.close()

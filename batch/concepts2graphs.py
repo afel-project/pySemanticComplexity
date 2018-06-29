@@ -6,7 +6,7 @@ import os
 import ujson as json
 from abc import ABCMeta
 from argparse import ArgumentParser, Namespace
-from typing import Optional
+from typing import Optional, Set
 
 from sklearn.externals.joblib import Parallel, delayed
 
@@ -23,7 +23,8 @@ class Concept2GraphsRunner(metaclass=ABCMeta):
 
     @classmethod
     def json_files_to_graphs(cls, dir_in: str, dir_out: str, ext_in: str, ext_out: str, num_cores: int, force: bool,
-                             backend: str = 'threading', concepts_types_file: str = None):
+                             backend: str = 'threading', concepts_types_file: str = None,
+                             ontology_keys: Set[str] = None):
         file_names = ((file_in, os.path.join(dir_out, os.path.splitext(os.path.basename(file_in))[0] + ext_out))
                       for file_in in glob.glob(os.path.join(dir_in, '*' + ext_in)))
         if not force:
@@ -36,9 +37,16 @@ class Concept2GraphsRunner(metaclass=ABCMeta):
         else:
             concepts_types = None
 
+        LOG.info("Creating graph builder factory")
         factory = GraphBuilderFactory()
+        LOG.info("Creating ontology manager (Can take time...)")
+        factory.default_ontology_manager = factory.build_default_ontology_manager(ontology_keys)
+        LOG.info("Ontology manager will used these ontologies: %s" %
+                 str(factory.default_ontology_manager.get_ontology_keys()))
+        LOG.info("Creating graph builder")
         graph_builder = factory.build_networkx_graph_builer(concepts_types=concepts_types)
 
+        LOG.info("Processing concepts files")
         Parallel(n_jobs=num_cores, verbose=5, backend=backend)(
             delayed(cls._json_file_to_graph)(f[0], f[1], graph_builder) for f in file_names
         )
@@ -64,12 +72,15 @@ class Concept2Graphs(BatchProcess):
         parser.add_argument('-f', '--force', help='Do not take care of already existing output files '
                                                   '(disabled by default)', action='store_true')
         parser.add_argument('-nc', '--num-cores', help='Number of cores (default: 1)', type=int, default=1)
+        parser.add_argument('-on', '--ontology', help='Ontologies to used (Default: all)', type=str, action='append',
+                            choices=GraphBuilderFactory.get_available_default_ontology_keys(), default=[])
         return parser
 
     def _run(self, args: Namespace) -> Optional[int]:
         self._logger.info("Start working...")
         Concept2GraphsRunner.json_files_to_graphs(args.data_in_dir, args.data_out_dir, '.json', '.json', args.num_cores,
-                                                  args.force, concepts_types_file=args.types)
+                                                  args.force, concepts_types_file=args.types,
+                                                  ontology_keys=set(args.ontology))
         self._logger.info("Work done.")
         return
 

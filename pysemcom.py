@@ -18,8 +18,8 @@ class PyComplex(metaclass=ABCMeta):
 
     @classmethod
     def _get_epilog(cls, progname):
-        epilog = """Semantic complexity relies on DBpedia Entity Recognition Graph computation based on multiple ontologies used in DBPedia.
-PyComplex offers several subprograms to process multiples files in parallels.
+        epilog = """Semantic complexity relies on DBpedia Entity Recognition Graph computation based on multiple 
+ontologies used in DBPedia. PyComplex offers several subprograms to process multiples files in parallels.
 The Subprograms are :\n"""
         for sp in SubProgramLoader().available_subprograms():
             epilog += ("\t- %s: %s\n" % (sp.name, sp.description))
