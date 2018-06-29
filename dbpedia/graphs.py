@@ -47,7 +47,11 @@ class OntologyManager:
         for key, namespace in self._managed_namespaces.items():
             g.bind(key, namespace)
         for filename, file_format in self._managed_ontologies_files.values():
-            g.parse(filename, format=file_format)
+            try:
+                g.parse(filename, format=file_format)
+            except FileNotFoundError as e:
+                LOG.fatal("Missing onotlogy file '%s'" % filename)
+                raise e
         self._reference_graph = g
         return self
 
@@ -325,9 +329,12 @@ class GraphBuilderFactory(metaclass=Singleton):
                                     concepts_types: dict = None) -> NetworkXGraphBuilder:
         if ontology_manager is None:
             if self._default_ontology_manager is None:
-                self._default_ontology_manager = self._build_default_ontology_manager()
+                self.build_default_ontology_manager()
             ontology_manager = self._default_ontology_manager
         return NetworkXGraphBuilder(ontology_manager, concepts_types)
+
+    def build_default_ontology_manager(self):
+        self._default_ontology_manager = self._build_default_ontology_manager()
 
     @staticmethod
     def _build_default_ontology_manager() -> OntologyManager:

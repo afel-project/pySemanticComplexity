@@ -36,18 +36,27 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
         LOG.info("1/5: Checking directories and files rights...")
         cls._check_rights(dir_in, out_file, concept_type_filename, graphs_dir)
 
+        # Create the different composants required to the transformation
+        LOG.info("2: Create transformer component")
+        text_processor = TextPreprocessor()  # Preprocessing of texts
+        client = DBpediaSpotlightClient(spotlight_ep)  # Spotlight client
+        retriever = ConceptTypeRetriever(sparql_ep, max_concepts, nice_server)  # types retriever
+        graph_builder_factory = GraphBuilderFactory()  # GraphBuilder factory
+        graph_builder_factory.build_default_ontology_manager()  # Initialisation of the ontology manager
+        graph_transformer = GraphTransformer()  # Graph transformer
+
         # Create a list of text files and a list of simple text file name that will be used in different functions
         input_files = list(glob.glob(os.path.join(dir_in, '*' + ext_in)))
         input_files_names = [os.path.splitext(os.path.split(file)[1])[0] for file in input_files]
 
         # Compute entities of each files
         LOG.info("2/5: Clean texts and detect DBpedia entities from them...")
-        entities_list, entity_set = cls._process_files_to_entities(input_files, spotlight_ep, confidence, num_cores,
-                                                                   backend)
+        entities_list, entity_set = cls._process_files_to_entities(input_files, text_processor, client, confidence,
+                                                                   num_cores, backend)
 
         # Compute a entity - type mapping set
         LOG.info("3/5: Retrieve types for all entities...")
-        concepts_types = cls._retrieve_concepts_types(entity_set, sparql_ep, max_concepts, nice_server)
+        concepts_types = cls._retrieve_concepts_types(entity_set, retriever)
 
         # Save some memory: delete the entity_set and the input_files list
         LOG.info("Memory cleaning...")
@@ -68,7 +77,8 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
             out_graph_files = [os.path.join(graphs_dir, filename + '.json') for filename in input_files_names]
         else:
             out_graph_files = []
-        dataset = cls._compute_graphs_and_vectors(entities_list, out_graph_files, concepts_types, num_cores, backend)
+        dataset = cls._compute_graphs_and_vectors(entities_list, out_graph_files, concepts_types, graph_builder_factory,
+                                                  graph_transformer, num_cores, backend)
 
         # Insert the filename column into the dataset
         dataset.insert(0, 'filename', input_files_names)
@@ -98,14 +108,11 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
             raise ValueError("Graphs directory does not exist or is not writable.")
 
     @classmethod
-    def _process_files_to_entities(cls, files_in: List[str], spotlight_ep: str, confidence: float,
-                                   num_cores: int, backend: str) \
+    def _process_files_to_entities(cls, files_in: List[str], text_processor: TextPreprocessor,
+                                   client: DBpediaSpotlightClient, confidence: float, num_cores: int, backend: str) \
             -> Tuple[List[List[DBpediaResource]], Set[DBpediaResource]]:
         """Process in parrell each texts to obtain a list of list of DBPediaResource (one list for each text)
         and a set of DBPediaResource (common for all texts"""
-        # Create the text preprocessor and the Spotligh REST Client
-        text_processor = TextPreprocessor()
-        client = DBpediaSpotlightClient(spotlight_ep)
 
         # Treat the files in parallel to get a list of list of DBpediaResource
         entities_list = Parallel(n_jobs=num_cores, verbose=5, backend=backend)(
@@ -117,8 +124,8 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
         return entities_list, entities_set
 
     @classmethod
-    def _process_file_to_entities(cls, filename, text_processor, client: DBpediaSpotlightClient, confidence: float) \
-            -> List[DBpediaResource]:
+    def _process_file_to_entities(cls, filename, text_processor: TextPreprocessor, client: DBpediaSpotlightClient,
+                                  confidence: float) -> List[DBpediaResource]:
         """Process a file to clean it, split it in paragraphs, then retrieve all DBPedia resources for all paragraphs
         And merge them into a unique list"""
         with open(filename, 'r') as f_in:
@@ -137,25 +144,20 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
             return []
 
     @classmethod
-    def _retrieve_concepts_types(cls, entity_set: Set[DBpediaResource], sparql_ep: str,
-                                 max_concepts: int, nice_server: bool) -> Dict[str, List[str]]:
+    def _retrieve_concepts_types(cls, entity_set: Set[DBpediaResource], retriever: ConceptTypeRetriever) \
+            -> Dict[str, List[str]]:
         """Retrieve all types of all resources through a sequence of SPARQL requests."""
-        # Create the types retriever
-        retriever = ConceptTypeRetriever(sparql_ep, max_concepts, nice_server)
         concepts_types = retriever.retrieve_resource_types(entity_set)
         return concepts_types
 
     @classmethod
     def _compute_graphs_and_vectors(cls, entities_lists: List[List[DBpediaResource]], out_files: List[str],
-                                    concept_types: Dict[str, List[str]],
-                                    num_cores: int, backend: str) -> pd.DataFrame:
+                                    concept_types: Dict[str, List[str]], graph_builder_factory: GraphBuilderFactory,
+                                    graph_transformer: GraphTransformer, num_cores: int, backend: str) -> pd.DataFrame:
         """Create graph for each entities lists corresponding to each text files.
         Save them in json files if required."""
-        # Create the graph builder based on default ontologies and the concepts-types dictionnary
-        # and the graph transformer
-        factory = GraphBuilderFactory()
-        graph_builder = factory.build_networkx_graph_builer(concepts_types=concept_types)
-        graph_transformer = GraphTransformer()
+        # Create the graph builder based on  the concepts-types dictionnary
+        graph_builder = graph_builder_factory.build_networkx_graph_builer(concepts_types=concept_types)
 
         # Create graph and vectors in parrallel of each couple entities - out_file (out_file might be null)
         vectors = Parallel(n_jobs=num_cores, verbose=5, backend=backend)(

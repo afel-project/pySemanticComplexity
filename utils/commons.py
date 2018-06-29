@@ -4,6 +4,7 @@ import logging
 import logging.config
 import os
 import sys
+import traceback
 from abc import ABCMeta, abstractmethod
 from argparse import ArgumentParser, Namespace
 from typing import Optional
@@ -47,7 +48,7 @@ class BatchProcess(metaclass=ABCMeta):
         """
         pass
 
-    def _configure_logging(self, configuration_file: str = None, level: int=logging.INFO):
+    def _configure_logging(self, configuration_file: str = None, level: int = logging.INFO, debug: bool= False):
         """
         Configure le logging
         :param configuration_file: a configuration file path
@@ -62,7 +63,10 @@ class BatchProcess(metaclass=ABCMeta):
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(log_formatter)
             root_logger.addHandler(console_handler)
-            root_logger.setLevel(level)
+            if debug:
+                root_logger.setLevel(logging.DEBUG)
+            else:
+                root_logger.setLevel(level)
             self._logger = root_logger
             return root_logger
 
@@ -79,14 +83,20 @@ class BatchProcess(metaclass=ABCMeta):
         self._configure_args(self._parser)
 
         if self._use_logger:
-            self._parser.add_argument('--logging-file', help='Logging configuration file.', type=str)
+            self._parser.add_argument('--logging-file', help='Logging configuration file', type=str)
+            self._parser.add_argument('--debug', help='Debug mode', action='store_true')
 
         args = self._parser.parse_args()
 
         if self._use_logger:
-            self._configure_logging(args.logging_file)
+            self._configure_logging(args.logging_file, debug=args.debug)
 
-        ret = self._run(args)
+        try:
+            ret = self._run(args)
+        except BaseException as e:
+            ret = 1
+            self._logger.debug(traceback.format_exc())
+            self._logger.fatal("Fatal Error happened: %s" % str(e))
 
         if ret is None:
             sys.exit(0)
