@@ -16,7 +16,8 @@ from sklearn.externals.joblib import Parallel, delayed
 
 from dbpedia.concept import ConceptTypeRetriever
 from dbpedia.entities import DBpediaResource
-from dbpedia.graphs import GraphBuilderFactory, NetworkXGraphBuilder, GraphTransformer
+from dbpedia.graphs import GraphBuilderFactory, NetworkXGraphBuilder
+from dbpedia.graphsTransformers import NamespaceNetworkxGraphTransformer, NetworkxGraphTransformer
 from dbpedia.spotlight import DBpediaSpotlightClient
 from utils.commons import BatchProcess, file_can_be_write
 from utils.filePreprocessor import TextPreprocessor
@@ -44,11 +45,11 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
         retriever = ConceptTypeRetriever(sparql_ep, max_concepts, nice_server)  # types retriever
         graph_builder_factory = GraphBuilderFactory()  # GraphBuilder factory
         LOG.info("Creating ontology manager (Can take time...)")
-        graph_builder_factory.default_ontology_manager = \
-            graph_builder_factory.build_default_ontology_manager(ontology_keys)
+        ontology_manager = graph_builder_factory.build_default_ontology_manager(ontology_keys)
+        graph_builder_factory.default_ontology_manager = ontology_manager
         LOG.info("Ontology manager will used these ontologies: %s" %
                  str(graph_builder_factory.default_ontology_manager.get_ontology_keys()))
-        graph_transformer = GraphTransformer()  # Graph transformer
+        graph_transformer = NamespaceNetworkxGraphTransformer(ontology_manager.managed_namespaces) # Graph transformer
 
         # Create a list of text files and a list of simple text file name that will be used in different functions
         input_files = list(glob.glob(os.path.join(dir_in, '*' + ext_in)))
@@ -158,7 +159,8 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
     @classmethod
     def _compute_graphs_and_vectors(cls, entities_lists: List[List[DBpediaResource]], out_files: List[str],
                                     concept_types: Dict[str, List[str]], graph_builder_factory: GraphBuilderFactory,
-                                    graph_transformer: GraphTransformer, num_cores: int, backend: str) -> pd.DataFrame:
+                                    graph_transformer: NetworkxGraphTransformer, num_cores: int,
+                                    backend: str) -> pd.DataFrame:
         """Create graph for each entities lists corresponding to each text files.
         Save them in json files if required."""
         # Create the graph builder based on  the concepts-types dictionnary
@@ -179,7 +181,8 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
 
     @classmethod
     def _compute_graph_and_vectors(cls, entities: List[DBpediaResource], out_file: str,
-                                   graph_builder: NetworkXGraphBuilder, transformer: GraphTransformer) -> List[float]:
+                                   graph_builder: NetworkXGraphBuilder,
+                                   transformer: NetworkxGraphTransformer) -> List[float]:
         """Create a graph for an entities list and save it in out_file it required, then vectorize if"""
         # Create the graph of concepts
         graph = graph_builder.build_graph_from_entities(entities)

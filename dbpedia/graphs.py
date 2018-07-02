@@ -6,7 +6,7 @@ import ujson as json
 from abc import abstractmethod, ABCMeta
 from collections import Counter
 from itertools import chain
-from typing import Optional, List, Tuple, Union, Set, Iterable
+from typing import Optional, List, Tuple, Union, Set, Iterable, Dict
 
 import networkx as nx
 import numpy as np
@@ -17,7 +17,7 @@ from sklearn.base import BaseEstimator
 from utils.commons import AVAILABLE_ONTOLOGIES, Ontology, ModuleShutUpWarning
 from .entities import DBpediaResource
 
-__all__ = ['OntologyManager', 'GraphBuilder', 'NetworkXGraphBuilder', 'GraphBuilderFactory', 'GraphTransformer']
+__all__ = ['OntologyManager', 'GraphBuilder', 'NetworkXGraphBuilder', 'GraphBuilderFactory']
 
 LOG = logging.getLogger(__name__)
 
@@ -26,8 +26,8 @@ class OntologyManager:
     _CONCEPT_URIREF = URIRef('#AbstractConcept#')
 
     def __init__(self):
-        self._managed_namespaces = {}
-        self._managed_ontologies_files = {}
+        self._managed_namespaces: Dict[str, Namespace] = {}
+        self._managed_ontologies_files: Dict[str, Tuple[str, str]] = {}
         self._reference_graph: rdfGraph = None
 
     def get_ontology_keys(self) -> Iterable[str]:
@@ -126,6 +126,14 @@ class OntologyManager:
 
     @classmethod
     def get_abstract_concept_class(cls) -> URIRef:
+        return cls._CONCEPT_URIREF
+
+    @property
+    def managed_namespaces(self):
+        return self._managed_namespaces
+
+    @classmethod
+    def get_root(cls):
         return cls._CONCEPT_URIREF
 
 
@@ -377,55 +385,3 @@ class GraphBuilderFactory(metaclass=Singleton):
         for o in ontologies:
             om.add_ontology(key=o.key, namespace_uri=o.uri_base, filename=o.filename, file_format=o.file_format)
         return om.build_graph()
-
-
-class GraphTransformer(BaseEstimator):
-    def __init__(self):
-        pass
-
-    def fit_transform(self, X, y=None):
-        return np.vectorize(self.vectorize_graph, signature='(n)->(n,m)')(X)
-
-    def vectorize_graph(self, graph: nx.Graph) -> [float]:
-        return np.array([
-            self.feat_nb_concepts(graph),
-            self.feat_nb_unique_concepts(graph),
-            self.feat_nb_nodes(graph),
-            self.feat_radius(graph),
-            self.feat_diameter(graph),
-            self.feat_assortativity(graph),
-            self.feat_density(graph)
-        ], dtype=np.float)
-
-    @staticmethod
-    def get_features_names() -> [str]:
-        return ["nbConcepts", "nbUniqueConcepts", "nbNodes", "radius", "diameter", "assortativity", "density"]
-
-    @staticmethod
-    def feat_nb_concepts(graph: nx.Graph):
-        return sum((v['count'] for n, v in graph.nodes.items() if v.get('resource') is True))
-
-    @staticmethod
-    def feat_nb_unique_concepts(graph: nx.Graph):
-        return sum((1 for _, v in graph.nodes.items() if v.get('resource') is True))
-
-    @staticmethod
-    def feat_nb_nodes(graph: nx.Graph):
-        return len(graph.nodes)
-
-    @staticmethod
-    def feat_radius(graph: nx.Graph):
-        return nx.radius(graph)
-
-    @staticmethod
-    def feat_diameter(graph: nx.Graph):
-        return nx.diameter(graph)
-
-    @staticmethod
-    def feat_assortativity(graph: nx.Graph):
-        return nx.degree_pearson_correlation_coefficient(graph)
-
-    @staticmethod
-    def feat_density(graph: nx.Graph):
-        card_nodes = len(graph.nodes)
-        return 2.0 * len(graph.edges) / (card_nodes * (card_nodes - 1))
