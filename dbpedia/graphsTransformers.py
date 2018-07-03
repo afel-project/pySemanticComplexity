@@ -67,7 +67,10 @@ class NetworkxGraphTransformer(BaseEstimator):
 
     @staticmethod
     def feat_assortativity(graph: nx.Graph):
-        return nx.degree_pearson_correlation_coefficient(graph)
+        if graph:
+            return nx.degree_pearson_correlation_coefficient(graph)
+        else:
+            return 0
 
     @staticmethod
     def feat_density(graph: nx.Graph):
