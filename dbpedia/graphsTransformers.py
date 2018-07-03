@@ -41,11 +41,11 @@ class NetworkxGraphTransformer(BaseEstimator):
 
     @staticmethod
     def feat_nb_concepts(graph: nx.Graph):
-        return sum((v['count'] for n, v in graph.nodes.items() if v.get('resource') is True))
+        return sum((v['count'] for n, v in graph.nodes.items() if v.get('resource') is True), 0)
 
     @staticmethod
     def feat_nb_unique_concepts(graph: nx.Graph):
-        return sum((1 for _, v in graph.nodes.items() if v.get('resource') is True))
+        return sum((1 for _, v in graph.nodes.items() if v.get('resource') is True), 0)
 
     @staticmethod
     def feat_nb_nodes(graph: nx.Graph):
@@ -53,11 +53,17 @@ class NetworkxGraphTransformer(BaseEstimator):
 
     @staticmethod
     def feat_radius(graph: nx.Graph):
-        return nx.radius(graph)
+        if graph:
+            return nx.radius(graph)
+        else:
+            return 0
 
     @staticmethod
     def feat_diameter(graph: nx.Graph):
-        return nx.diameter(graph)
+        if graph:
+            return nx.diameter(graph)
+        else:
+            return 0
 
     @staticmethod
     def feat_assortativity(graph: nx.Graph):
@@ -74,6 +80,9 @@ class NetworkxGraphTransformer(BaseEstimator):
         # indicator between 0 and 1.
         # O -> concept are very close in text and/or in semantic
         # 1 -> concept are very far in text and in semantic
+
+        if not graph:
+            return 0
 
         # TODO: Correct that!
         max_off = max(attrs.get('offset') for _, attrs in graph.nodes.items() if attrs.get('resource') is True)
