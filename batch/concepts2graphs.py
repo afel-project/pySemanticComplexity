@@ -16,7 +16,7 @@ from utils.commons import BatchProcess
 
 LOG = logging.getLogger(__name__)
 
-__all__ = ['Concept2Graphs']
+__all__ = ['Concept2Graphs', 'Concept2GraphsRunner']
 
 
 class Concept2GraphsRunner(metaclass=ABCMeta):
@@ -55,7 +55,7 @@ class Concept2GraphsRunner(metaclass=ABCMeta):
     def _json_file_to_graph(cls, file_in: str, file_out: str, graph_builder: NetworkXGraphBuilder):
         with open(file_in, 'r') as f_in:
             resources = json.load(f_in)
-        concepts = [DBpediaResource.from_dict(d['concept']) for d in resources]
+        concepts = [DBpediaResource.from_dict(d) for d in resources]
         graph = graph_builder.build_graph_from_entities(concepts)
         graph_builder.to_json(file_out, graph)
 

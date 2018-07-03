@@ -47,8 +47,8 @@ class SubProgramLoader(metaclass=Singleton):
             from .texts2concepts import Texts2Concepts
             return Texts2Concepts
         elif name == 'concepts2types':
-            from .conceptsTypesScrapper import ConceptsTypesScrapper
-            return ConceptsTypesScrapper
+            from .concepts2types import Concepts2Types
+            return Concepts2Types
         elif name == 'concepts2graphs':
             from .concepts2graphs import Concept2Graphs
             return Concept2Graphs

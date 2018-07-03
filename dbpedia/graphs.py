@@ -9,10 +9,8 @@ from itertools import chain
 from typing import Optional, List, Tuple, Union, Set, Iterable, Dict
 
 import networkx as nx
-import numpy as np
 from rdflib import Graph as rdfGraph
 from rdflib import Namespace, URIRef, RDFS
-from sklearn.base import BaseEstimator
 
 from utils.commons import AVAILABLE_ONTOLOGIES, Ontology, ModuleShutUpWarning
 from .entities import DBpediaResource
@@ -155,7 +153,7 @@ class GraphBuilder(metaclass=ABCMeta):
         raise AttributeError("Cannot delete ontology manager.")
 
     def build_graph_from_entities(self, resources: [DBpediaResource]):
-        return self.build_sub_graph_from_entities(resources, None)
+        return self.build_sub_graph_from_entities(resources, namespace_key=None)
 
     def build_sub_graph_from_entities(self, resources: [DBpediaResource], namespace_key: str = None):
         LOG.debug("Build a graph for %d resources" % len(resources))
@@ -178,7 +176,7 @@ class GraphBuilder(metaclass=ABCMeta):
     def _complete_graph_with_resource(self, graph, resource: DBpediaResource, resource_count: int,
                                       namespace_key: str = None):
         # Insert the resource as a node in the graph
-        rsc_node = self._write_resource_node(graph, resource, count=resource_count)
+        rsc_node = self._write_resource_node(graph, resource, count=resource_count, offset=resource.scores.offset)
 
         # Extract the resource types
         types = self._get_resource_types(resource, namespace_key)
@@ -283,8 +281,10 @@ class NetworkXGraphBuilder(GraphBuilder):
             json_graph = json.load(f_in)
         return nx.node_link_graph(json_graph)
 
-    def _create_graph(self):
-        return nx.Graph()
+    def _create_graph(self, **kwargs):
+        if 'incoming_graph_data' in kwargs:  # just to secure the call
+            del kwargs['incoming_graph_data']
+        return nx.Graph(**kwargs)
 
     def _write_resource_node(self, graph, resource: DBpediaResource, **kwargs):
         """

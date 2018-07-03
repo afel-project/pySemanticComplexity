@@ -11,9 +11,9 @@ from itertools import zip_longest
 from typing import Set, Tuple, Dict, List, Optional
 
 import pandas as pd
-from requests.exceptions import RequestException
 from sklearn.externals.joblib import Parallel, delayed
 
+from batch.texts2concepts import Texts2ConceptsRunner
 from dbpedia.concept import ConceptTypeRetriever
 from dbpedia.entities import DBpediaResource
 from dbpedia.graphs import GraphBuilderFactory, NetworkXGraphBuilder
@@ -24,7 +24,7 @@ from utils.filePreprocessor import TextPreprocessor
 
 LOG = logging.getLogger(__name__)
 
-__all__ = ['Texts2Vectors']
+__all__ = ['Texts2Vectors', 'Texts2VectorsRunner']
 
 
 class Texts2VectorsRunner(metaclass=ABCMeta):
@@ -49,7 +49,7 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
         graph_builder_factory.default_ontology_manager = ontology_manager
         LOG.info("Ontology manager will used these ontologies: %s" %
                  str(graph_builder_factory.default_ontology_manager.get_ontology_keys()))
-        graph_transformer = NamespaceNetworkxGraphTransformer(ontology_manager.managed_namespaces) # Graph transformer
+        graph_transformer = NamespaceNetworkxGraphTransformer(ontology_manager.managed_namespaces)  # Graph transformer
 
         # Create a list of text files and a list of simple text file name that will be used in different functions
         input_files = list(glob.glob(os.path.join(dir_in, '*' + ext_in)))
@@ -117,12 +117,13 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
     def _process_files_to_entities(cls, files_in: List[str], text_processor: TextPreprocessor,
                                    client: DBpediaSpotlightClient, confidence: float, num_cores: int, backend: str) \
             -> Tuple[List[List[DBpediaResource]], Set[DBpediaResource]]:
-        """Process in parrell each texts to obtain a list of list of DBPediaResource (one list for each text)
+        """Process in parallel each texts to obtain a list of list of DBPediaResource (one list for each text)
         and a set of DBPediaResource (common for all texts"""
 
         # Treat the files in parallel to get a list of list of DBpediaResource
         entities_list = Parallel(n_jobs=num_cores, verbose=5, backend=backend)(
-            delayed(cls._process_file_to_entities)(f, text_processor, client, confidence) for f in files_in)
+            delayed(Texts2ConceptsRunner.process_file_to_entities)(f, text_processor, client, confidence) for f in
+            files_in)
 
         # Create a set of DBPedia resources
         entities_set = set(e for l in entities_list for e in l)
@@ -130,35 +131,15 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
         return entities_list, entities_set
 
     @classmethod
-    def _process_file_to_entities(cls, filename, text_processor: TextPreprocessor, client: DBpediaSpotlightClient,
-                                  confidence: float) -> List[DBpediaResource]:
-        """Process a file to clean it, split it in paragraphs, then retrieve all DBPedia resources for all paragraphs
-        And merge them into a unique list"""
-        with open(filename, 'r') as f_in:
-            paragraphs = text_processor.process_to_paragraphs(f_in.read())
-        LOG.debug("Retrieve concept of %s" % filename)
-        concepts = cls._paragraphs_to_entities(paragraphs, client, confidence)
-        return concepts
-
-    @classmethod
-    def _paragraphs_to_entities(cls, paragraphs: List[str], client: DBpediaSpotlightClient, confidence: float) \
-            -> List[DBpediaResource]:
-        try:
-            return [concept[0] for p in paragraphs for concept in client.annotate(text=p, confidence=confidence)]
-        except RequestException as e:
-            LOG.warning("Request Exception: %s" % str(e))
-            return []
-
-    @classmethod
     def _retrieve_concepts_types(cls, entity_set: Set[DBpediaResource], retriever: ConceptTypeRetriever) \
-            -> Dict[str, List[str]]:
+            -> Dict[str, Set[str]]:
         """Retrieve all types of all resources through a sequence of SPARQL requests."""
         concepts_types = retriever.retrieve_resource_types(entity_set)
         return concepts_types
 
     @classmethod
     def _compute_graphs_and_vectors(cls, entities_lists: List[List[DBpediaResource]], out_files: List[str],
-                                    concept_types: Dict[str, List[str]], graph_builder_factory: GraphBuilderFactory,
+                                    concept_types: Dict[str, Set[str]], graph_builder_factory: GraphBuilderFactory,
                                     graph_transformer: NetworkxGraphTransformer, num_cores: int,
                                     backend: str) -> pd.DataFrame:
         """Create graph for each entities lists corresponding to each text files.

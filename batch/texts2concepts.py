@@ -6,22 +6,47 @@ import os
 import ujson as json
 from abc import ABCMeta
 from argparse import Namespace, ArgumentParser
-from typing import Optional
+from typing import Optional, List
 
 from requests.exceptions import RequestException
 from sklearn.externals.joblib import Parallel, delayed
 
-from dbpedia.entities import DBpediaResource, AnnotationScore
+from dbpedia.entities import DBpediaResource
 from dbpedia.spotlight import DBpediaSpotlightClient
 from utils.commons import BatchProcess
 from utils.filePreprocessor import TextPreprocessor
 
 LOG = logging.getLogger(__name__)
 
-__all__ = ['Texts2Concepts']
+__all__ = ['Texts2Concepts', 'Texts2ConceptsRunner']
 
 
 class Texts2ConceptsRunner(metaclass=ABCMeta):
+
+    @classmethod
+    def process_file_to_entities(cls, filename, text_processor: TextPreprocessor, client: DBpediaSpotlightClient,
+                                 confidence: float) -> List[DBpediaResource]:
+        """Process a file to clean it, split it in paragraphs, then retrieve all DBPedia resources for all paragraphs
+        And merge them into a unique list"""
+        with open(filename, 'r') as f_in:
+            paragraphs = text_processor.process_to_paragraphs(f_in.read())
+        LOG.debug("Retrieve concept of %s" % filename)
+        concepts = list(cls.paragraphs_to_entities(paragraphs, client, confidence))
+        return concepts
+
+    @classmethod
+    def paragraphs_to_entities(cls, paragraphs: List[str], client: DBpediaSpotlightClient, confidence: float) \
+            -> List[DBpediaResource]:
+
+        offset_span = 0
+        for p in paragraphs:
+            try:
+                for entity in client.annotate(text=p, confidence=confidence):
+                    entity.scores.offset += offset_span
+                    yield entity
+                offset_span += len(p)
+            except RequestException as e:
+                LOG.warning("Request Exception: %s" % str(e))
 
     @classmethod
     def dir_to_concept_json_files(cls, dir_in, dir_out, client: DBpediaSpotlightClient, text_processor,
@@ -37,25 +62,10 @@ class Texts2ConceptsRunner(metaclass=ABCMeta):
 
     @classmethod
     def _file_to_concept_json_file(cls, file_in, file_out, client: DBpediaSpotlightClient, text_processor, confidence):
-        with open(file_in, 'r') as f_in:
-            paragraphs = text_processor.process_to_paragraphs(f_in.read())
         LOG.info("Parsing concept of %s" % file_in)
-        concepts = cls._paragraphs_to_concepts(paragraphs, client, confidence=confidence)
+        concepts = cls.process_file_to_entities(file_in, text_processor, client, confidence=confidence)
         with open(file_out, 'w') as f_out:
-            json.dump(list(cls._concepts_to_json(concepts)), f_out)
-
-    @classmethod
-    def _paragraphs_to_concepts(cls, paragraphs: [str], client: DBpediaSpotlightClient,
-                                confidence: float) -> [(DBpediaResource, AnnotationScore)]:
-        try:
-            return [concept for p in paragraphs for concept in client.annotate(text=p, confidence=confidence)]
-        except RequestException as e:
-            LOG.warning("Request Exception: %s" % str(e))
-            return []
-
-    @classmethod
-    def _concepts_to_json(cls, concepts: [(DBpediaResource, AnnotationScore)]):
-        return ({'concept': concept[0].to_dict(), 'score': concept[1].to_dict()} for concept in concepts)
+            json.dump([c.to_dict() for c in concepts], f_out)
 
 
 class Texts2Concepts(BatchProcess):

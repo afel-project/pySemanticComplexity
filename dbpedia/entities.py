@@ -33,23 +33,35 @@ class AnnotationScore:
     def from_dict(cls, data):
         return cls(offset=data.get('offset'), surface_form=data.get('surfaceForm'),
                    similarity_score=data.get('similarityScore'),
-                   percentage_second_rank=data.get('percentageSecondRank'), support=data.get('support'))
+                   percentage_second_rank=data.get('percentageSecondRank'), support=data.get('support')) \
+            if data is not None else None
 
 
 class DBpediaResource:
-    __slots__ = ['uri', 'types']
+    __slots__ = ['uri', 'types', 'scores']
 
-    def __init__(self, uri: str, types: [str] = None):
+    def __init__(self, uri: str, types: [str] = None, scores: AnnotationScore = None):
         self.uri = uri
         self.types = types if types is not None else []
+        self.scores = scores
 
     def __repr__(self):
         return "%s %s" % (self.uri, str(self.types))
 
+    def __eq__(self, other):
+        if isinstance(other, DBpediaResource):
+            return self.uri == other.uri
+        else:
+            return NotImplemented
+
+    def __hash__(self):
+        return hash(self.uri)
+
     def to_dict(self):
-        attrs = (('uri', self.uri), ('types', self.types))
+        attrs = (('uri', self.uri), ('types', self.types), ('scores', self.scores.to_dict()))
         return dict(filter(lambda x: x[1] is not None, attrs))
 
     @classmethod
     def from_dict(cls, data):
-        return cls(uri=data.get('uri'), types=data.get('types', []))
+        return cls(uri=data.get('uri'), types=data.get('types', []),
+                   scores=AnnotationScore.from_dict(data.get('scores'))) if data is not None else None

@@ -16,7 +16,7 @@ from utils.commons import BatchProcess, AVAILABLE_ONTOLOGIES
 
 LOG = logging.getLogger(__name__)
 
-__all__ = ['GraphsToSemanticVectors']
+__all__ = ['GraphsToSemanticVectors', 'GraphsToSemanticVectorsRunner']
 
 
 class GraphsToSemanticVectorsRunner(metaclass=ABCMeta):

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Provides client to DBPedia Spotlight API."""
 import logging
-from typing import List, Tuple, Optional
+from typing import List, Optional
 
 import requests as rqst
 
@@ -25,7 +25,7 @@ class DBpediaSpotlightClient:
         return self._endpoint
 
     def annotate(self, text, confidence: float = 0.5, support: float = None, types: str = None, sparql: str = None,
-                 policy: str = None) -> List[Tuple[DBpediaResource, AnnotationScore]]:
+                 policy: str = None) -> List[DBpediaResource]:
         """
         Send a request to a to annotate a text, and return an array of annotation
         :param text: (str) text to be annotated.
@@ -50,15 +50,12 @@ class DBpediaSpotlightClient:
                                                      for item in raw_res.get('Resources', []))))
 
     @staticmethod
-    def _build_resource_annotation(json_item: dict) -> Optional[Tuple[DBpediaResource, AnnotationScore]]:
+    def _build_resource_annotation(json_item: dict) -> Optional[DBpediaResource]:
         if '@URI' not in json_item:
             return None
 
         types = json_item.get('@types', "")
         types = types.split(',') if types else []
-
-        resource = DBpediaResource(uri=json_item['@URI'],
-                                   types=types)
 
         annotation_score = AnnotationScore(offset=int(json_item['@offset']) if '@offset' in json_item else None,
                                            surface_form=json_item.get('@surfaceForm'),
@@ -68,4 +65,6 @@ class DBpediaSpotlightClient:
                                            percentage_second_rank=float(
                                                json_item['@percentageOfSecondRank']
                                                if '@percentageOfSecondRank' in json_item else None))
-        return resource, annotation_score
+        resource = DBpediaResource(uri=json_item['@URI'], types=types, scores=annotation_score)
+
+        return resource

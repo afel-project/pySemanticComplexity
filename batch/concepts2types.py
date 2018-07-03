@@ -6,7 +6,7 @@ import os
 import ujson as json
 from abc import ABCMeta
 from argparse import Namespace, ArgumentParser
-from typing import Optional
+from typing import Optional, Set
 
 from sklearn.externals.joblib import Parallel, delayed
 
@@ -16,13 +16,13 @@ from utils.commons import BatchProcess
 
 LOG = logging.getLogger(__name__)
 
-__all__ = ['ConceptsTypesScrapper']
+__all__ = ['Concepts2Types', 'Concepts2TypesRunner']
 
 
-class ConceptsTypesScrapperRunner(metaclass=ABCMeta):
+class Concepts2TypesRunner(metaclass=ABCMeta):
 
     @classmethod
-    def load_concepts(cls, dir_in: str, ext_in: str, num_cores: int, backend: str = 'threading'):
+    def load_concepts(cls, dir_in: str, ext_in: str, num_cores: int, backend: str = 'threading') -> Set[str]:
         file_names = (file_in for file_in in glob.glob(os.path.join(dir_in, '*' + ext_in)))
         concepts_sets = Parallel(n_jobs=num_cores, verbose=5, backend=backend)(
             delayed(cls._load_concept)(f) for f in file_names
@@ -30,14 +30,14 @@ class ConceptsTypesScrapperRunner(metaclass=ABCMeta):
         return set.union(*concepts_sets)
 
     @classmethod
-    def _load_concept(cls, filename):
+    def _load_concept(cls, filename) -> Set[str]:
         with open(filename, 'r') as f_in:
             resources = json.load(f_in)
-        concepts = [DBpediaResource.from_dict(d['concept']) for d in resources]
+        concepts = [DBpediaResource.from_dict(d) for d in resources]
         return set(concept.uri for concept in concepts)
 
 
-class ConceptsTypesScrapper(BatchProcess):
+class Concepts2Types(BatchProcess):
 
     def _configure_args(self, parser: ArgumentParser) -> ArgumentParser:
         parser.description = "A parallel implementation of batch processing for DBpedia concepts to concepts types."
@@ -61,10 +61,10 @@ class ConceptsTypesScrapper(BatchProcess):
         del f
 
         LOG.info("Load concept...")
-        raw_concepts = ConceptsTypesScrapperRunner.load_concepts(args.data_in_dir, '.json', args.num_cores)
+        concepts_uri = Concepts2TypesRunner.load_concepts(args.data_in_dir, '.json', args.num_cores)
         LOG.info("Retrieve types...")
         retriever = ConceptTypeRetriever(args.sparql_ep, args.max_concepts, args.nice_server)
-        concepts_types = retriever.retrieve_raw_concepts_types(raw_concepts)
+        concepts_types = retriever.retrieve_types_from_resource_iris(concepts_uri)
         LOG.info("Save types...")
         with open(args.out_file, 'w') as f:
             json.dump(concepts_types, f)
@@ -73,4 +73,4 @@ class ConceptsTypesScrapper(BatchProcess):
 
 
 if __name__ == '__main__':
-    ConceptsTypesScrapper().start()
+    Concepts2Types().start()
