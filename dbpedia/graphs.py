@@ -24,9 +24,9 @@ class OntologyManager:
     _CONCEPT_URIREF = URIRef('#AbstractConcept#')
 
     def __init__(self):
-        self._managed_namespaces: Dict[str, Namespace] = {}
-        self._managed_ontologies_files: Dict[str, Tuple[str, str]] = {}
-        self._reference_graph: rdfGraph = None
+        self._managed_namespaces = {}
+        self._managed_ontologies_files = {}
+        self._reference_graph = None
 
     def get_ontology_keys(self) -> Iterable[str]:
         return list(self._managed_namespaces.keys())

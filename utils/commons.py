@@ -38,8 +38,8 @@ class BatchProcess(metaclass=ABCMeta):
     """
 
     def __init__(self, use_logger: bool = True, progname: str = None):
-        self._parser: ArgumentParser = None
-        self._use_logger: bool = use_logger
+        self._parser = None
+        self._use_logger = use_logger
         self._logger = None
         self._progname = progname
         pass
