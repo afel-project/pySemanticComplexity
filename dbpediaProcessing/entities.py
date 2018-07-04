@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Define the main entities the program deals with to express entities from DBPedia."""
+from typing import List
 
-__all__ = ['AnnotationScore', 'DBpediaResource']
+__all__ = ['AnnotationScore', 'DBpediaResource', 'TextConcepts']
 
 
 class AnnotationScore:
@@ -65,3 +66,21 @@ class DBpediaResource:
     def from_dict(cls, data):
         return cls(uri=data.get('uri'), types=data.get('types', []),
                    scores=AnnotationScore.from_dict(data.get('scores'))) if data is not None else None
+
+
+class TextConcepts:
+    __slots__ = ['concepts', 'nb_words']
+
+    def __init__(self, concepts: List[DBpediaResource], nb_words: int):
+        self.concepts = concepts
+        self.nb_words = nb_words
+
+    def to_dict(self):
+        return {'concepts': [c.to_dict() for c in self.concepts],
+                'nbWords': self.nb_words}
+
+    @classmethod
+    def from_dict(cls, data):
+        concepts = [DBpediaResource.from_dict(d) for d in data.get('concepts', [])]
+        nb_words = data.get('nbWords')
+        return TextConcepts(concepts, nb_words)

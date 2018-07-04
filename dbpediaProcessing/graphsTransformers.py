@@ -8,7 +8,7 @@ import numpy as np
 from rdflib import Namespace
 from sklearn.base import BaseEstimator
 
-from dbpedia.graphs import OntologyManager
+from dbpediaProcessing.graphs import OntologyManager
 
 LOG = logging.getLogger(__name__)
 
@@ -25,6 +25,7 @@ class NetworkxGraphTransformer(BaseEstimator):
     def vectorize_graph(self, graph: nx.Graph) -> [float]:
         diameter = self.feat_diameter(graph)
         return np.hstack([
+            graph.graph.get('nb_words', -1),
             self.feat_nb_concepts(graph),
             self.feat_nb_unique_concepts(graph),
             self.feat_nb_nodes(graph),
@@ -36,7 +37,7 @@ class NetworkxGraphTransformer(BaseEstimator):
         ]).astype(float)
 
     def get_features_names(self) -> [str]:
-        return ["nbConcepts", "nbUniqueConcepts", "nbNodes", "radius", "diameter", "assortativity", "density",
+        return ["nbWord", "nbConcepts", "nbUniqueConcepts", "nbNodes", "radius", "diameter", "assortativity", "density",
                 "textDensityMean", 'textDensityStd']
 
     @staticmethod
@@ -88,7 +89,10 @@ class NetworkxGraphTransformer(BaseEstimator):
             return 0
 
         # TODO: Correct that!
-        max_off = max(attrs.get('offset') for _, attrs in graph.nodes.items() if attrs.get('resource') is True)
+        text_len = graph.graph.get('nb_words')
+        if text_len is None:
+            LOG.warning("cannot retrieve nb words from graph to compute text length")
+            text_len = max(attrs.get('offset') for _, attrs in graph.nodes.items() if attrs.get('resource') is True)
 
         # for each combinaison of resource node, compute the text_dentisty
         resources_nodes = (node for node, attrs in graph.nodes.items() if attrs.get('resource') is True)
@@ -96,7 +100,7 @@ class NetworkxGraphTransformer(BaseEstimator):
 
         dists_graph = np.array([nx.shortest_path_length(graph, m, n) for m, n in comb_nodes]) / diameter
         dists_text = np.abs(np.array([graph.nodes[n]['offset'] - graph.nodes[m]['offset']
-                                      for m, n in comb_nodes])) / max_off
+                                      for m, n in comb_nodes])) / text_len
 
         densities = dists_text * dists_text * np.sqrt(dists_graph)
         del comb_nodes, resources_nodes, dists_text, dists_graph

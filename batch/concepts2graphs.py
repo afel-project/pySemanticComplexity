@@ -10,8 +10,8 @@ from typing import Optional, Set
 
 from sklearn.externals.joblib import Parallel, delayed
 
-from dbpedia.entities import DBpediaResource
-from dbpedia.graphs import GraphBuilderFactory, NetworkXGraphBuilder
+from dbpediaProcessing.entities import TextConcepts
+from dbpediaProcessing.graphs import GraphBuilderFactory, NetworkXGraphBuilder
 from utils.commons import BatchProcess
 
 LOG = logging.getLogger(__name__)
@@ -54,9 +54,11 @@ class Concept2GraphsRunner(metaclass=ABCMeta):
     @classmethod
     def _json_file_to_graph(cls, file_in: str, file_out: str, graph_builder: NetworkXGraphBuilder):
         with open(file_in, 'r') as f_in:
-            resources = json.load(f_in)
-        concepts = [DBpediaResource.from_dict(d) for d in resources]
-        graph = graph_builder.build_graph_from_entities(concepts)
+            text_concepts = TextConcepts.from_dict(json.load(f_in))
+
+        graph = graph_builder.build_graph_from_entities(text_concepts.concepts)
+        graph_builder.load_text_concept_attributes(text_concepts, graph)
+
         graph_builder.to_json(file_out, graph)
 
 

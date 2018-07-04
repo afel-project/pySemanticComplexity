@@ -10,8 +10,8 @@ from typing import Optional, Set
 
 from sklearn.externals.joblib import Parallel, delayed
 
-from dbpedia.concept import ConceptTypeRetriever
-from dbpedia.entities import DBpediaResource
+from dbpediaProcessing.concept import ConceptTypeRetriever
+from dbpediaProcessing.entities import TextConcepts
 from utils.commons import BatchProcess
 
 LOG = logging.getLogger(__name__)
@@ -32,8 +32,7 @@ class Concepts2TypesRunner(metaclass=ABCMeta):
     @classmethod
     def _load_concept(cls, filename) -> Set[str]:
         with open(filename, 'r') as f_in:
-            resources = json.load(f_in)
-        concepts = [DBpediaResource.from_dict(d) for d in resources]
+            concepts = TextConcepts.from_dict(json.load(f_in)).concepts
         return set(concept.uri for concept in concepts)
 
 

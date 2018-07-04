@@ -14,13 +14,14 @@ import pandas as pd
 from sklearn.externals.joblib import Parallel, delayed
 
 from batch.texts2concepts import Texts2ConceptsRunner
-from dbpedia.concept import ConceptTypeRetriever
-from dbpedia.entities import DBpediaResource
-from dbpedia.graphs import GraphBuilderFactory, NetworkXGraphBuilder
-from dbpedia.graphsTransformers import NamespaceNetworkxGraphTransformer, NetworkxGraphTransformer
-from dbpedia.spotlight import DBpediaSpotlightClient
+from dbpediaProcessing.concept import ConceptTypeRetriever
+from dbpediaProcessing.entities import DBpediaResource, TextConcepts
+from dbpediaProcessing.graphs import GraphBuilderFactory, NetworkXGraphBuilder
+from dbpediaProcessing.graphsTransformers import NamespaceNetworkxGraphTransformer, NetworkxGraphTransformer
+from dbpediaProcessing.spotlight import DBpediaSpotlightClient
+from textProcessing.TextTransformers import TextTransformer
+from textProcessing.filePreprocessor import TextPreprocessor
 from utils.commons import BatchProcess, file_can_be_write
-from utils.filePreprocessor import TextPreprocessor
 
 LOG = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
         # Create the different composants required to the transformation
         LOG.info("2/6: Create transformer component")
         text_processor = TextPreprocessor()  # Preprocessing of texts
+        text_transformer = TextTransformer()  # Basic stats of texts
         client = DBpediaSpotlightClient(spotlight_ep)  # Spotlight client
         retriever = ConceptTypeRetriever(sparql_ep, max_concepts, nice_server)  # types retriever
         graph_builder_factory = GraphBuilderFactory()  # GraphBuilder factory
@@ -57,8 +59,8 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
 
         # Compute entities of each files
         LOG.info("3/6: Clean texts and detect DBpedia entities from them...")
-        entities_list, entity_set = cls._process_files_to_entities(input_files, text_processor, client, confidence,
-                                                                   num_cores, backend)
+        texts_concepts, entity_set = cls._process_files_to_entities(input_files, text_processor, text_transformer,
+                                                                    client, confidence, num_cores, backend)
 
         # Compute a entity - type mapping set
         LOG.info("4/6: Retrieve types for all entities...")
@@ -83,15 +85,15 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
             out_graph_files = [os.path.join(graphs_dir, filename + '.json') for filename in input_files_names]
         else:
             out_graph_files = []
-        dataset = cls._compute_graphs_and_vectors(entities_list, out_graph_files, concepts_types, graph_builder_factory,
-                                                  graph_transformer, num_cores, backend)
+        dataset = cls._compute_graphs_and_vectors(texts_concepts, out_graph_files, concepts_types,
+                                                  graph_builder_factory, graph_transformer, num_cores, backend)
 
         # Insert the filename column into the dataset
         dataset.insert(0, 'filename', input_files_names)
 
         # Save some memory: delete entities_list, input_files_names
         LOG.info("Memory cleaning...")
-        del entities_list, input_files_names
+        del texts_concepts, input_files_names
         gc.collect()
 
         # Save the dataframe
@@ -115,20 +117,22 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
 
     @classmethod
     def _process_files_to_entities(cls, files_in: List[str], text_processor: TextPreprocessor,
-                                   client: DBpediaSpotlightClient, confidence: float, num_cores: int, backend: str) \
-            -> Tuple[List[List[DBpediaResource]], Set[DBpediaResource]]:
+                                   text_transformer: TextTransformer, client: DBpediaSpotlightClient,
+                                   confidence: float, num_cores: int, backend: str) \
+            -> Tuple[List[TextConcepts], Set[DBpediaResource]]:
         """Process in parallel each texts to obtain a list of list of DBPediaResource (one list for each text)
         and a set of DBPediaResource (common for all texts"""
 
         # Treat the files in parallel to get a list of list of DBpediaResource
-        entities_list = Parallel(n_jobs=num_cores, verbose=5, backend=backend)(
-            delayed(Texts2ConceptsRunner.process_file_to_entities)(f, text_processor, client, confidence) for f in
+        text_concepts = Parallel(n_jobs=num_cores, verbose=5, backend=backend)(
+            delayed(Texts2ConceptsRunner.process_file_to_entities)(f, text_processor, text_transformer,
+                                                                   client, confidence) for f in
             files_in)
 
         # Create a set of DBPedia resources
-        entities_set = set(e for l in entities_list for e in l)
+        entities_set = set(concept for t_c in text_concepts for concept in t_c.concepts)
 
-        return entities_list, entities_set
+        return text_concepts, entities_set
 
     @classmethod
     def _retrieve_concepts_types(cls, entity_set: Set[DBpediaResource], retriever: ConceptTypeRetriever) \
@@ -138,20 +142,19 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
         return concepts_types
 
     @classmethod
-    def _compute_graphs_and_vectors(cls, entities_lists: List[List[DBpediaResource]], out_files: List[str],
+    def _compute_graphs_and_vectors(cls, texts_concepts: List[TextConcepts], out_files: List[str],
                                     concept_types: Dict[str, Set[str]], graph_builder_factory: GraphBuilderFactory,
                                     graph_transformer: NetworkxGraphTransformer, num_cores: int,
                                     backend: str) -> pd.DataFrame:
         """Create graph for each entities lists corresponding to each text files.
         Save them in json files if required."""
         # Create the graph builder based on  the concepts-types dictionnary
-        LOG.info("Creating the graph builder...")
         graph_builder = graph_builder_factory.build_networkx_graph_builer(concepts_types=concept_types)
 
         # Create graph and vectors in parrallel of each couple entities - out_file (out_file might be null)
         vectors = Parallel(n_jobs=num_cores, verbose=5, backend=backend)(
-            delayed(cls._compute_graph_and_vectors)(entities, out_file, graph_builder, graph_transformer)
-            for entities, out_file, in zip_longest(entities_lists, out_files)
+            delayed(cls._compute_graph_and_vectors)(text_concept, out_file, graph_builder, graph_transformer)
+            for text_concept, out_file, in zip_longest(texts_concepts, out_files)
         )
 
         # Create the dataset based on graph
@@ -161,12 +164,13 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
         return dataset
 
     @classmethod
-    def _compute_graph_and_vectors(cls, entities: List[DBpediaResource], out_file: str,
+    def _compute_graph_and_vectors(cls, text_concept: TextConcepts, out_file: str,
                                    graph_builder: NetworkXGraphBuilder,
                                    transformer: NetworkxGraphTransformer) -> List[float]:
         """Create a graph for an entities list and save it in out_file it required, then vectorize if"""
         # Create the graph of concepts
-        graph = graph_builder.build_graph_from_entities(entities)
+        graph = graph_builder.build_graph_from_entities(text_concept.concepts)
+        graph_builder.load_text_concept_attributes(text_concept, graph)
         # Save if if required
         if out_file is not None:
             LOG.debug("Save the graph %s" % out_file)

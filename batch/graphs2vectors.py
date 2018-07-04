@@ -10,8 +10,8 @@ from typing import Optional, Set
 import pandas as pd
 from sklearn.externals.joblib import Parallel, delayed
 
-from dbpedia.graphs import NetworkXGraphBuilder, GraphBuilderFactory
-from dbpedia.graphsTransformers import NamespaceNetworkxGraphTransformer, NetworkxGraphTransformer
+from dbpediaProcessing.graphs import GraphBuilderFactory, NetworkXGraphBuilder
+from dbpediaProcessing.graphsTransformers import NamespaceNetworkxGraphTransformer, NetworkxGraphTransformer
 from utils.commons import BatchProcess, AVAILABLE_ONTOLOGIES
 
 LOG = logging.getLogger(__name__)
@@ -50,7 +50,9 @@ class GraphsToSemanticVectorsRunner(metaclass=ABCMeta):
 
     @classmethod
     def _graph_to_vector(cls, file_in: str, transformer: NetworkxGraphTransformer):
-        return transformer.vectorize_graph(NetworkXGraphBuilder.from_json(file_in))
+        graph = NetworkXGraphBuilder.from_json(file_in)
+        graph_vector = transformer.vectorize_graph(graph)
+        return graph_vector
 
 
 class GraphsToSemanticVectors(BatchProcess):

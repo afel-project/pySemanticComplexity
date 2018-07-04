@@ -11,10 +11,11 @@ from typing import Optional, List
 from requests.exceptions import RequestException
 from sklearn.externals.joblib import Parallel, delayed
 
-from dbpedia.entities import DBpediaResource
-from dbpedia.spotlight import DBpediaSpotlightClient
+from dbpediaProcessing.entities import DBpediaResource, TextConcepts
+from dbpediaProcessing.spotlight import DBpediaSpotlightClient
+from textProcessing.TextTransformers import TextTransformer
+from textProcessing.filePreprocessor import TextPreprocessor
 from utils.commons import BatchProcess
-from utils.filePreprocessor import TextPreprocessor
 
 LOG = logging.getLogger(__name__)
 
@@ -24,15 +25,17 @@ __all__ = ['Texts2Concepts', 'Texts2ConceptsRunner']
 class Texts2ConceptsRunner(metaclass=ABCMeta):
 
     @classmethod
-    def process_file_to_entities(cls, filename, text_processor: TextPreprocessor, client: DBpediaSpotlightClient,
-                                 confidence: float) -> List[DBpediaResource]:
+    def process_file_to_entities(cls, filename, text_processor: TextPreprocessor, text_transformer: TextTransformer,
+                                 client: DBpediaSpotlightClient, confidence: float) -> TextConcepts:
         """Process a file to clean it, split it in paragraphs, then retrieve all DBPedia resources for all paragraphs
         And merge them into a unique list"""
         with open(filename, 'r') as f_in:
-            paragraphs = text_processor.process_to_paragraphs(f_in.read())
+            raw_text = f_in.read()
+            nb_words = text_transformer.count_words(raw_text)
+            paragraphs = text_processor.process_to_paragraphs(raw_text)
         LOG.debug("Retrieve concept of %s" % filename)
         concepts = list(cls.paragraphs_to_entities(paragraphs, client, confidence))
-        return concepts
+        return TextConcepts(concepts, nb_words)
 
     @classmethod
     def paragraphs_to_entities(cls, paragraphs: List[str], client: DBpediaSpotlightClient, confidence: float) \
@@ -49,7 +52,8 @@ class Texts2ConceptsRunner(metaclass=ABCMeta):
                 LOG.warning("Request Exception: %s" % str(e))
 
     @classmethod
-    def dir_to_concept_json_files(cls, dir_in, dir_out, client: DBpediaSpotlightClient, text_processor,
+    def dir_to_concept_json_files(cls, dir_in, dir_out, client: DBpediaSpotlightClient,
+                                  text_processor: TextPreprocessor, text_transformer: TextTransformer,
                                   confidence, in_ext, n_jobs, force, backend: str = "threading"):
         file_names = ((file_in, os.path.join(dir_out, os.path.splitext(os.path.basename(file_in))[0] + '.json'))
                       for file_in in glob.glob(os.path.join(dir_in, '*' + in_ext)))
@@ -58,14 +62,17 @@ class Texts2ConceptsRunner(metaclass=ABCMeta):
             file_names = filter(lambda x: not os.path.exists(x[1]), file_names)
 
         Parallel(n_jobs=n_jobs, verbose=5, backend=backend)(
-            delayed(cls._file_to_concept_json_file)(f[0], f[1], client, text_processor, confidence) for f in file_names)
+            delayed(cls._file_to_concept_json_file)(f[0], f[1], client, text_processor,
+                                                    text_transformer, confidence) for f in file_names)
 
     @classmethod
-    def _file_to_concept_json_file(cls, file_in, file_out, client: DBpediaSpotlightClient, text_processor, confidence):
+    def _file_to_concept_json_file(cls, file_in, file_out, client: DBpediaSpotlightClient,
+                                   text_processor: TextPreprocessor, text_transformer: TextTransformer, confidence):
         LOG.info("Parsing concept of %s" % file_in)
-        concepts = cls.process_file_to_entities(file_in, text_processor, client, confidence=confidence)
+        text_concepts = cls.process_file_to_entities(file_in, text_processor, text_transformer, client,
+                                                     confidence=confidence)
         with open(file_out, 'w') as f_out:
-            json.dump([c.to_dict() for c in concepts], f_out)
+            json.dump(text_concepts.to_dict(), f_out)
 
 
 class Texts2Concepts(BatchProcess):
@@ -91,10 +98,11 @@ class Texts2Concepts(BatchProcess):
     def _run(self, args: Namespace) -> Optional[int]:
         client = DBpediaSpotlightClient(args.endpoint)
         text_processor = TextPreprocessor()
+        text_transformer = TextTransformer()
         self._logger.info("Start working...")
         Texts2ConceptsRunner \
-            .dir_to_concept_json_files(args.data_in_dir, args.data_out_dir, client, text_processor, args.confidence,
-                                       args.ext_in, args.num_cores, args.force)
+            .dir_to_concept_json_files(args.data_in_dir, args.data_out_dir, client, text_processor,
+                                       text_transformer, args.confidence, args.ext_in, args.num_cores, args.force)
         self._logger.info("Work done.")
         return
 

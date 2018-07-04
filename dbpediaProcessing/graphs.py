@@ -6,12 +6,13 @@ import ujson as json
 from abc import abstractmethod, ABCMeta
 from collections import Counter
 from itertools import chain
-from typing import Optional, List, Tuple, Union, Set, Iterable, Dict
+from typing import Optional, List, Tuple, Union, Set, Iterable
 
 import networkx as nx
 from rdflib import Graph as rdfGraph
 from rdflib import Namespace, URIRef, RDFS
 
+from dbpediaProcessing.entities import TextConcepts
 from utils.commons import AVAILABLE_ONTOLOGIES, Ontology, ModuleShutUpWarning
 from .entities import DBpediaResource
 
@@ -264,6 +265,10 @@ class GraphBuilder(metaclass=ABCMeta):
         """
         pass
 
+    @abstractmethod
+    def load_text_concept_attributes(self, text_concepts: TextConcepts, graph):
+        pass
+
 
 class NetworkXGraphBuilder(GraphBuilder):
     def __init__(self, ontology_manager: OntologyManager, concepts_types: dict = None):
@@ -281,7 +286,7 @@ class NetworkXGraphBuilder(GraphBuilder):
             json_graph = json.load(f_in)
         return nx.node_link_graph(json_graph)
 
-    def _create_graph(self, **kwargs):
+    def _create_graph(self, **kwargs) -> nx.Graph:
         if 'incoming_graph_data' in kwargs:  # just to secure the call
             del kwargs['incoming_graph_data']
         return nx.Graph(**kwargs)
@@ -328,6 +333,9 @@ class NetworkXGraphBuilder(GraphBuilder):
         :return: the create edge
         """
         return graph.add_edge(node_1, node_2)
+
+    def load_text_concept_attributes(self, text_concepts: TextConcepts, graph: nx.Graph):
+        graph.graph['nb_words'] = text_concepts.nb_words
 
 
 class Singleton(type):

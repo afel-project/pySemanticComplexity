@@ -7,7 +7,7 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import networkx as nx
 
-from dbpedia.graphs import NetworkXGraphBuilder
+from dbpediaProcessing.graphs import NetworkXGraphBuilder
 from utils.commons import BatchProcess
 
 __all__ = ['PrintGraph']
