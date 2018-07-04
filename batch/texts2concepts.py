@@ -31,8 +31,8 @@ class Texts2ConceptsRunner(metaclass=ABCMeta):
         And merge them into a unique list"""
         with open(filename, 'r') as f_in:
             raw_text = f_in.read()
-            nb_words = text_transformer.count_words(raw_text)
             paragraphs = text_processor.process_to_paragraphs(raw_text)
+            nb_words = sum(text_transformer.count_words(p) for p in paragraphs) if paragraphs else 0
         LOG.debug("Retrieve concept of %s" % filename)
         concepts = list(cls.paragraphs_to_entities(paragraphs, client, confidence))
         return TextConcepts(concepts, nb_words)
