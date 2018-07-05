@@ -4,6 +4,7 @@ import gc
 import glob
 import logging
 import os
+import platform
 import ujson as json
 from abc import ABCMeta
 from argparse import Namespace, ArgumentParser
@@ -21,7 +22,7 @@ from dbpediaProcessing.graphsTransformers import NamespaceNetworkxGraphTransform
 from dbpediaProcessing.spotlight import DBpediaSpotlightClient
 from textProcessing.TextTransformers import TextTransformer
 from textProcessing.filePreprocessor import TextPreprocessor
-from utils.commons import BatchProcess, file_can_be_write
+from utils.commons import BatchProcess, file_can_be_write, safe_concurrency_backend
 
 LOG = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
     def process_files_to_vectors(cls, dir_in: str, out_file: str, spotlight_ep: str, num_cores: int, ext_in: str,
                                  confidence: float, sparql_ep: str, max_concepts: int, nice_server: bool,
                                  concept_type_filename: str, ontology_keys: Set[str], graphs_dir: str,
-                                 backend: str = "threading"):
+                                 backend: str = "multiprocessing"):
         # Before going further, test the existence of dirs, and the possibility to write documents
         LOG.info("1/6: Checking directories and files rights...")
         cls._check_rights(dir_in, out_file, concept_type_filename, graphs_dir)
@@ -122,6 +123,7 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
             -> Tuple[List[TextConcepts], Set[DBpediaResource]]:
         """Process in parallel each texts to obtain a list of list of DBPediaResource (one list for each text)
         and a set of DBPediaResource (common for all texts"""
+        backend = safe_concurrency_backend(backend, urllib_used=True)
 
         # Treat the files in parallel to get a list of list of DBpediaResource
         text_concepts = Parallel(n_jobs=num_cores, verbose=5, backend=backend)(
@@ -148,6 +150,8 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
                                     backend: str) -> pd.DataFrame:
         """Create graph for each entities lists corresponding to each text files.
         Save them in json files if required."""
+        backend = safe_concurrency_backend(backend)
+
         # Create the graph builder based on  the concepts-types dictionnary
         graph_builder = graph_builder_factory.build_networkx_graph_builer(concepts_types=concept_types)
 

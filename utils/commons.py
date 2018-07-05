@@ -3,12 +3,15 @@
 import logging
 import logging.config
 import os
+import platform
 import sys
 import traceback
 from abc import ABCMeta, abstractmethod
 from argparse import ArgumentParser, Namespace
 from collections import namedtuple
 from typing import Optional
+
+LOG = logging.getLogger(__name__)
 
 __all__ = ['BatchProcess', 'VENDOR_DIR_PATH', 'Ontology', 'AVAILABLE_ONTOLOGIES', 'file_can_be_write',
            'ModuleShutUpWarning']
@@ -22,9 +25,21 @@ AVAILABLE_ONTOLOGIES = [
              filename=os.path.join(VENDOR_DIR_PATH, "dbpedia/dbpedia.nt"), file_format='nt'),
     Ontology(key='Schema', uri_base="http://schema.org/",
              filename=os.path.join(VENDOR_DIR_PATH, "dbpedia/schema.nt"), file_format='nt'),
-    Ontology(key='yago', uri_base="http://dbpedia.org/ontology/",
+    Ontology(key='yago', uri_base="http://dbpedia.org/class/yago/",
              filename=os.path.join(VENDOR_DIR_PATH, "dbpedia/yago_taxonomy.ttl"), file_format='n3'),
 ]
+
+
+def safe_concurrency_backend(backend: str, urllib_used: bool = False):
+    if not backend or backend not in ['multiprocessing', 'threading']:
+        LOG.warning("Unknown concurrency backend. Backend set to multiprocessing")
+        backend = 'multiprocessing'
+    if urllib_used is True and os.name == 'posix' and platform.system().lower() == 'darwin' and backend != 'threading':
+        # Force backend to multithreading if platform is mac (know bug in liburl3)
+        LOG.warning("Running on Mac, concurrency backend switched to threading for safety reason")
+        backend = 'threading'
+    return backend
+
 
 
 def file_can_be_write(filename: str) -> bool:
@@ -128,3 +143,4 @@ class ModuleShutUpWarning:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.__rdf_logger.setLevel(self.__previous_level)
+

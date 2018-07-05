@@ -3,6 +3,7 @@
 import glob
 import logging
 import os
+import platform
 import ujson as json
 from abc import ABCMeta
 from argparse import Namespace, ArgumentParser
@@ -15,7 +16,7 @@ from dbpediaProcessing.entities import DBpediaResource, TextConcepts
 from dbpediaProcessing.spotlight import DBpediaSpotlightClient
 from textProcessing.TextTransformers import TextTransformer
 from textProcessing.filePreprocessor import TextPreprocessor
-from utils.commons import BatchProcess
+from utils.commons import BatchProcess, safe_concurrency_backend
 
 LOG = logging.getLogger(__name__)
 
@@ -54,7 +55,9 @@ class Texts2ConceptsRunner(metaclass=ABCMeta):
     @classmethod
     def dir_to_concept_json_files(cls, dir_in, dir_out, client: DBpediaSpotlightClient,
                                   text_processor: TextPreprocessor, text_transformer: TextTransformer,
-                                  confidence, in_ext, n_jobs, force, backend: str = "threading"):
+                                  confidence, in_ext, n_jobs, force, backend: str = 'multiprocessing'):
+        backend = safe_concurrency_backend(backend, urllib_used=True)
+
         file_names = ((file_in, os.path.join(dir_out, os.path.splitext(os.path.basename(file_in))[0] + '.json'))
                       for file_in in glob.glob(os.path.join(dir_in, '*' + in_ext)))
 

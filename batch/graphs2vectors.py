@@ -12,7 +12,7 @@ from sklearn.externals.joblib import Parallel, delayed
 
 from dbpediaProcessing.graphs import GraphBuilderFactory, NetworkXGraphBuilder
 from dbpediaProcessing.graphsTransformers import NamespaceNetworkxGraphTransformer, NetworkxGraphTransformer
-from utils.commons import BatchProcess, AVAILABLE_ONTOLOGIES
+from utils.commons import BatchProcess, AVAILABLE_ONTOLOGIES, safe_concurrency_backend
 
 LOG = logging.getLogger(__name__)
 
@@ -23,7 +23,9 @@ class GraphsToSemanticVectorsRunner(metaclass=ABCMeta):
 
     @classmethod
     def graphs_to_csv(cls, dir_in: str, csv_filename: str, ext_in: str, num_cores: int,
-                      ontology_keys: Set[str], backend: str = 'threading'):
+                      ontology_keys: Set[str], backend: str = 'multiprocessing'):
+        backend = safe_concurrency_backend(backend)
+
         LOG.info("Creating transformer")
         if not ontology_keys:
             managed_ns = dict((key, uri) for key, uri, _, _ in AVAILABLE_ONTOLOGIES)

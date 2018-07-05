@@ -12,7 +12,7 @@ from sklearn.externals.joblib import Parallel, delayed
 
 from dbpediaProcessing.entities import TextConcepts
 from dbpediaProcessing.graphs import GraphBuilderFactory, NetworkXGraphBuilder
-from utils.commons import BatchProcess
+from utils.commons import BatchProcess, safe_concurrency_backend
 
 LOG = logging.getLogger(__name__)
 
@@ -23,8 +23,10 @@ class Concept2GraphsRunner(metaclass=ABCMeta):
 
     @classmethod
     def json_files_to_graphs(cls, dir_in: str, dir_out: str, ext_in: str, ext_out: str, num_cores: int, force: bool,
-                             backend: str = 'threading', concepts_types_file: str = None,
+                             backend: str = 'multiprocessing', concepts_types_file: str = None,
                              ontology_keys: Set[str] = None):
+        backend = safe_concurrency_backend(backend)
+
         file_names = ((file_in, os.path.join(dir_out, os.path.splitext(os.path.basename(file_in))[0] + ext_out))
                       for file_in in glob.glob(os.path.join(dir_in, '*' + ext_in)))
         if not force:
