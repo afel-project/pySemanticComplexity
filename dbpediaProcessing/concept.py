@@ -77,7 +77,7 @@ ORDER BY ?subject ?type
             if self.nice_to_server:
                 t = np.random.randint(1000) / 1000
                 time.sleep(t)
-        return data
+        return dict(data)
 
     def _retrieve_types_from_sub_rsc(self, rsc_subset: List[str]) -> Dict[str, Set[str]]:
         """

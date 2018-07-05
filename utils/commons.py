@@ -14,7 +14,7 @@ from typing import Optional
 LOG = logging.getLogger(__name__)
 
 __all__ = ['BatchProcess', 'VENDOR_DIR_PATH', 'Ontology', 'AVAILABLE_ONTOLOGIES', 'file_can_be_write',
-           'ModuleShutUpWarning']
+           'ModuleShutUpWarning', 'safe_concurrency_backend']
 
 VENDOR_DIR_PATH = './vendor'
 

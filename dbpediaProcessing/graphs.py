@@ -169,11 +169,10 @@ class GraphBuilder(metaclass=ABCMeta):
         # Generate the graph
         g = self._create_graph()
 
-        with ModuleShutUpWarning('rdflib'):
-            # For each unique resource, add them with their classes and their ancestors in the graph
-            for uri, resource in resources_dict.items():
-                self._complete_graph_with_resource(g, resource, resources_counter[uri], namespace_key)
-            return g
+        # For each unique resource, add them with their classes and their ancestors in the graph
+        for uri, resource in resources_dict.items():
+            self._complete_graph_with_resource(g, resource, resources_counter[uri], namespace_key)
+        return g
 
     def _complete_graph_with_resource(self, graph, resource: DBpediaResource, resource_count: int,
                                       namespace_key: str = None):

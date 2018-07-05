@@ -22,7 +22,7 @@ from dbpediaProcessing.graphsTransformers import NamespaceNetworkxGraphTransform
 from dbpediaProcessing.spotlight import DBpediaSpotlightClient
 from textProcessing.TextTransformers import TextTransformer
 from textProcessing.filePreprocessor import TextPreprocessor
-from utils.commons import BatchProcess, file_can_be_write, safe_concurrency_backend
+from utils.commons import BatchProcess, file_can_be_write, safe_concurrency_backend, ModuleShutUpWarning
 
 LOG = logging.getLogger(__name__)
 
@@ -156,10 +156,11 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
         graph_builder = graph_builder_factory.build_networkx_graph_builer(concepts_types=concept_types)
 
         # Create graph and vectors in parrallel of each couple entities - out_file (out_file might be null)
-        vectors = Parallel(n_jobs=num_cores, verbose=5, backend=backend)(
-            delayed(cls._compute_graph_and_vectors)(text_concept, out_file, graph_builder, graph_transformer)
-            for text_concept, out_file, in zip_longest(texts_concepts, out_files)
-        )
+        with ModuleShutUpWarning('rdflib'):
+            vectors = Parallel(n_jobs=num_cores, verbose=5, backend=backend)(
+                delayed(cls._compute_graph_and_vectors)(text_concept, out_file, graph_builder, graph_transformer)
+                for text_concept, out_file, in zip_longest(texts_concepts, out_files)
+            )
 
         # Create the dataset based on graph
         LOG.debug("Create the dataset...")

@@ -12,7 +12,7 @@ from sklearn.externals.joblib import Parallel, delayed
 
 from dbpediaProcessing.entities import TextConcepts
 from dbpediaProcessing.graphs import GraphBuilderFactory, NetworkXGraphBuilder
-from utils.commons import BatchProcess, safe_concurrency_backend
+from utils.commons import BatchProcess, safe_concurrency_backend, ModuleShutUpWarning
 
 LOG = logging.getLogger(__name__)
 
@@ -49,9 +49,10 @@ class Concept2GraphsRunner(metaclass=ABCMeta):
         graph_builder = factory.build_networkx_graph_builer(concepts_types=concepts_types)
 
         LOG.info("Processing concepts files")
-        Parallel(n_jobs=num_cores, verbose=5, backend=backend)(
-            delayed(cls._json_file_to_graph)(f[0], f[1], graph_builder) for f in file_names
-        )
+        with ModuleShutUpWarning('rdflib'):
+            Parallel(n_jobs=num_cores, verbose=5, backend=backend)(
+                delayed(cls._json_file_to_graph)(f[0], f[1], graph_builder) for f in file_names
+            )
 
     @classmethod
     def _json_file_to_graph(cls, file_in: str, file_out: str, graph_builder: NetworkXGraphBuilder):
@@ -60,7 +61,6 @@ class Concept2GraphsRunner(metaclass=ABCMeta):
 
         graph = graph_builder.build_graph_from_entities(text_concepts.concepts)
         graph_builder.load_text_concept_attributes(text_concepts, graph)
-
         graph_builder.to_json(file_out, graph)
 
 

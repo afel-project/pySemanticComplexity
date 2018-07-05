@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
+from abc import ABCMeta, abstractmethod
 from itertools import chain, combinations
-from typing import Dict, Union
+from typing import Dict, Union, Iterable
 
 import networkx as nx
 import numpy as np
@@ -12,17 +13,31 @@ from dbpediaProcessing.graphs import OntologyManager
 
 LOG = logging.getLogger(__name__)
 
-__all__ = ['NetworkxGraphTransformer', 'NamespaceNetworkxGraphTransformer']
+__all__ = ['GraphTransformer', 'NetworkxGraphTransformer', 'NamespaceNetworkxGraphTransformer']
 
 
-class NetworkxGraphTransformer(BaseEstimator):
+class GraphTransformer(BaseEstimator, metaclass=ABCMeta):
+
+    def fit_transform(self, X, y=None):
+        return np.vectorize(self.vectorize_graph, signature='(n)->(n,m)')(X)
+
+    @abstractmethod
+    def vectorize_graph(self, graph: nx.Graph) -> Iterable[float]:
+        pass
+
+    @abstractmethod
+    def get_features_names(self) -> [str]:
+        pass
+
+
+class NetworkxGraphTransformer(GraphTransformer):
     def __init__(self):
         super().__init__()
 
     def fit_transform(self, X, y=None):
         return np.vectorize(self.vectorize_graph, signature='(n)->(n,m)')(X)
 
-    def vectorize_graph(self, graph: nx.Graph) -> [float]:
+    def vectorize_graph(self, graph: nx.Graph) -> Iterable[float]:
         diameter = self.feat_diameter(graph)
         return np.hstack([
             graph.graph.get('nb_words', -1),
@@ -114,7 +129,7 @@ class NamespaceNetworkxGraphTransformer(NetworkxGraphTransformer):
         super().__init__()
         self.managed_namespaces = managed_namespaces
 
-    def vectorize_graph(self, graph: nx.Graph) -> [float]:
+    def vectorize_graph(self, graph: nx.Graph) -> Iterable[float]:
         return np.hstack(chain((super().vectorize_graph(graph),),
                                (self._vectorize_partial_graph(graph, ns)
                                 for ns in self.managed_namespaces.values())))
