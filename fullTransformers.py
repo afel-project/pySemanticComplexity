@@ -13,7 +13,7 @@ from dbpediaProcessing.graphs import GraphBuilder, GraphBuilderFactory
 from dbpediaProcessing.graphsTransformers import GraphTransformer, NamespaceNetworkxGraphTransformer
 from dbpediaProcessing.spotlight import DBpediaSpotlightClient
 from textProcessing.TextTransformers import TextTransformer
-from utils.commons import safe_concurrency_backend, Ontology
+from utils.commons import safe_concurrency_backend, Ontology, ModuleShutUpWarning
 
 __all__ = ['SemanticTransformer', 'build_default_semantic_transformer']
 
@@ -85,9 +85,9 @@ class SemanticTransformer(BaseEstimator):
         backend = safe_concurrency_backend(self.backend, urllib_used=False)
         # Build graph builder based on concept_types
         graph_builder = self.graph_builder_factory.build_networkx_graph_builer(concepts_types=concepts_types)
-
-        vectors = Parallel(n_jobs=self.nb_cores, verbose=5, backend=backend)(
-            delayed(self._compute_graph_vectors)(text_concepts, graph_builder) for text_concepts in text_concepts_list)
+        with ModuleShutUpWarning('rdflib'):
+            vectors = Parallel(n_jobs=self.nb_cores, verbose=5, backend=backend)(
+                delayed(self._compute_graph_vectors)(text_concepts, graph_builder) for text_concepts in text_concepts_list)
         return np.array(vectors, dtype=float)
 
     def _compute_graph_vectors(self, text_concepts: TextConcepts, graph_builder: GraphBuilder) \

@@ -30,13 +30,16 @@ AVAILABLE_ONTOLOGIES = [
 ]
 
 
-def safe_concurrency_backend(backend: str, urllib_used: bool = False):
+def safe_concurrency_backend(backend: str, urllib_used: bool = False, heavy_sharing: bool = False):
     if not backend or backend not in ['multiprocessing', 'threading']:
         LOG.warning("Unknown concurrency backend. Backend set to multiprocessing")
         backend = 'multiprocessing'
     if urllib_used is True and os.name == 'posix' and platform.system().lower() == 'darwin' and backend != 'threading':
         # Force backend to multithreading if platform is mac (know bug in liburl3)
         LOG.warning("Running on Mac, concurrency backend switched to threading for safety reason")
+        backend = 'threading'
+    if heavy_sharing is True and backend != 'threading':
+        LOG.warning("Heavy sharing of parameters in parallel computing: using threads over processes")
         backend = 'threading'
     return backend
 

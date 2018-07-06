@@ -150,7 +150,7 @@ class Texts2VectorsRunner(metaclass=ABCMeta):
                                     backend: str) -> pd.DataFrame:
         """Create graph for each entities lists corresponding to each text files.
         Save them in json files if required."""
-        backend = safe_concurrency_backend(backend)
+        backend = safe_concurrency_backend(backend, heavy_sharing=True)
 
         # Create the graph builder based on  the concepts-types dictionnary
         graph_builder = graph_builder_factory.build_networkx_graph_builer(concepts_types=concept_types)
