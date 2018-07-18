@@ -8,26 +8,12 @@ import sys
 import traceback
 from abc import ABCMeta, abstractmethod
 from argparse import ArgumentParser, Namespace
-from collections import namedtuple
 from typing import Optional
 
 LOG = logging.getLogger(__name__)
 
-__all__ = ['BatchProcess', 'VENDOR_DIR_PATH', 'Ontology', 'AVAILABLE_ONTOLOGIES', 'file_can_be_write',
+__all__ = ['BatchProcess', 'file_can_be_write',
            'ModuleShutUpWarning', 'safe_concurrency_backend']
-
-VENDOR_DIR_PATH = './vendor'
-
-Ontology = namedtuple('Ontology', ['key', 'uri_base', 'filename', 'file_format'])
-
-AVAILABLE_ONTOLOGIES = [
-    Ontology(key='DBPedia', uri_base="http://dbpedia.org/ontology/",
-             filename=os.path.join(VENDOR_DIR_PATH, "dbpedia/dbpedia.nt"), file_format='nt'),
-    Ontology(key='Schema', uri_base="http://schema.org/",
-             filename=os.path.join(VENDOR_DIR_PATH, "dbpedia/schema.nt"), file_format='nt'),
-    Ontology(key='yago', uri_base="http://dbpedia.org/class/yago/",
-             filename=os.path.join(VENDOR_DIR_PATH, "dbpedia/yago_taxonomy.ttl"), file_format='n3'),
-]
 
 
 def safe_concurrency_backend(backend: str, urllib_used: bool = False, heavy_sharing: bool = False):
@@ -42,7 +28,6 @@ def safe_concurrency_backend(backend: str, urllib_used: bool = False, heavy_shar
         LOG.warning("Heavy sharing of parameters in parallel computing: using threads over processes")
         backend = 'threading'
     return backend
-
 
 
 def file_can_be_write(filename: str) -> bool:
@@ -89,7 +74,7 @@ class BatchProcess(metaclass=ABCMeta):
         if configuration_file is not None:
             logging.config.fileConfig(configuration_file)
         else:
-            log_formatter = logging.Formatter("%(asctime)s [%(threadName)-12.12s] [%(levelname)-5.5s]  %(message)s")
+            log_formatter = logging.Formatter("%(asctime)s [%(levelname)-5.5s]  %(message)s")
             root_logger = logging.getLogger()
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(log_formatter)
@@ -146,4 +131,3 @@ class ModuleShutUpWarning:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.__rdf_logger.setLevel(self.__previous_level)
-

@@ -9,7 +9,7 @@ import numpy as np
 from rdflib import Namespace
 from sklearn.base import BaseEstimator
 
-from dbpediaProcessing.graphs import OntologyManager
+from parsers.semantic.graphs.ontologies import OntologyManager
 
 LOG = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class GraphTransformer(BaseEstimator, metaclass=ABCMeta):
         return np.vectorize(self.vectorize_graph, signature='(n)->(n,m)')(X)
 
     @abstractmethod
-    def vectorize_graph(self, graph: nx.Graph) -> Iterable[float]:
+    def vectorize_graph(self, graph) -> Iterable[float]:
         pass
 
     @abstractmethod
@@ -39,21 +39,29 @@ class NetworkxGraphTransformer(GraphTransformer):
 
     def vectorize_graph(self, graph: nx.Graph) -> Iterable[float]:
         diameter = self.feat_diameter(graph)
+        nb_concepts = self.feat_nb_concepts(graph)
+        nb_unique_concepts = self.feat_nb_unique_concepts(graph)
+        nb_words = graph.graph.get('nb_words', -1)
         return np.hstack([
-            graph.graph.get('nb_words', -1),
-            self.feat_nb_concepts(graph),
-            self.feat_nb_unique_concepts(graph),
+            nb_words,
+            nb_concepts,
+            nb_unique_concepts,
+            nb_concepts / nb_words,
+            nb_unique_concepts / nb_words,
             self.feat_nb_nodes(graph),
             self.feat_radius(graph),
             diameter,
             self.feat_assortativity(graph),
             self.feat_density(graph),
-            self.feat_text_dentity(graph, diameter)
+            self.feat_text_dentity(graph, diameter),
+            self.feat_types_links_mean_std(graph),
         ]).astype(float)
 
     def get_features_names(self) -> [str]:
-        return ["nbWord", "nbConcepts", "nbUniqueConcepts", "nbNodes", "radius", "diameter", "assortativity", "density",
-                "textDensityMean", 'textDensityStd']
+        return ["nbWord", "nbConcepts", "nbUniqueConcepts", "conceptsWordsRatio", "uniqueConceptsWordsRatio",
+                "nbNodes", "radius", "diameter", "assortativity", "density",
+                "textDensityMean", 'textDensityStd',
+                "nbTypesMean", "nbTypesStd", "nbLinkInMean", "nbLinkInStd", "nbLinkOutMean", "nbLinkOutStd"]
 
     @staticmethod
     def feat_nb_concepts(graph: nx.Graph):
@@ -103,7 +111,6 @@ class NetworkxGraphTransformer(GraphTransformer):
         if not graph:
             return 0
 
-        # TODO: Correct that!
         text_len = graph.graph.get('nb_words')
         if text_len is None:
             LOG.warning("cannot retrieve nb words from graph to compute text length")
@@ -122,6 +129,29 @@ class NetworkxGraphTransformer(GraphTransformer):
 
         # return the mean and the standard deviation of the texual densities
         return [np.mean(densities), np.std(densities)]
+
+    @staticmethod
+    def feat_types_links_mean_std(graph: nx.Graph) -> Iterable[float]:
+        """
+        Compute nbTypesMean, nbTypesStd, nbLinkInMean, nbLinkInStd, nbLinkOutMean, nbLinkOutStd
+        :param graph: the concepts graph
+        :return: an array of 6 values
+        """
+        resources_nodes = ((node, attrs) for node, attrs in graph.nodes.items() if attrs.get('resource') is True)
+        stats = {
+            'nbTypes': [],
+            'nbLinksIn': [],
+            'nbLinksOut': []
+        }
+        for node, attrs in resources_nodes:
+            for attribute, stat_list in stats.items():
+                if attrs.get(attribute) is None:
+                    LOG.warning("Resource node without %s (node's attributes: %s)" % (attribute, str(attrs.keys())))
+                else:
+                    stat_list.append(attrs.get(attribute))
+        return np.array([np.mean(stats['nbTypes']), np.std(stats['nbTypes']),
+                         np.mean(stats['nbLinksIn']), np.std(stats['nbLinksIn']),
+                         np.mean(stats['nbLinksOut']), np.std(stats['nbLinksOut'])])
 
 
 class NamespaceNetworkxGraphTransformer(NetworkxGraphTransformer):

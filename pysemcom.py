@@ -4,7 +4,7 @@ import sys
 from abc import ABCMeta
 from collections import namedtuple
 
-from batch.loader import SubProgramLoader
+from subprograms.loader import SubProgramLoader
 
 SubProgram = namedtuple('SubProgram', ['name', 'subprogram', 'description'])
 

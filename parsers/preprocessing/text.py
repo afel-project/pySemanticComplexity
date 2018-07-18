@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """Text precessor to clean raw text or split it in paragraphs or sentences."""
 import re
-from typing import Any, List, Iterable
+from typing import Any, List
+
+from nltk.tokenize.treebank import TreebankWordTokenizer
 
 __all__ = ['TextPreprocessor']
 
@@ -22,6 +24,7 @@ class TextPreprocessor:
         """
         self.sentences_tokenizer = sentence_tokenizer  # might wanna use
         self.paragraph_threshold = paragraph_threshold
+        self._word_tokenizer = TreebankWordTokenizer()
 
     def clean_text(self, text: str) -> str:
         return self._WRONG_CHAR_FILTER.sub(" ", text)
@@ -32,11 +35,13 @@ class TextPreprocessor:
     def filter_paragraphs(self, paragraphs: List[str]) -> List[str]:
         return list(filter(lambda x: len(x) > self.paragraph_threshold, paragraphs))
 
+    '''
     def split_to_sentences(self, text: str) -> Iterable[str]:
         if self.sentences_tokenizer is None:
             raise AttributeError("No tokenizer has been set")
 
         return self.sentences_tokenizer.tokenize(text)
+    '''
 
     def process_to_paragraphs(self, text: str) -> List[str]:
         r = text
@@ -46,3 +51,13 @@ class TextPreprocessor:
         r = self.filter_paragraphs(r)
 
         return r
+
+    @property
+    def word_tokenizer(self):
+        return self._word_tokenizer
+
+    def tokenize(self, text: str) -> List[str]:
+        return self._word_tokenizer.tokenize(text)
+
+    def count_words(self, text: str) -> int:
+        return len(self.tokenize(text))

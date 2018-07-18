@@ -26,8 +26,8 @@ class SubProgramLoader(metaclass=Singleton):
                    description="Full pipeline: converts raw texts files to a single CSV file of complexity vectors."),
         SubProgram(name='texts2concepts',
                    description="Converts raw texts files to JSON concepts files. Use a DBPedia Spotlight REST Api."),
-        SubProgram(name='concepts2types',
-                   description="Retrieves all the types of the different concepts from JSON concepts files"),
+        SubProgram(name='concepts2info',
+                   description="Retrieves all the information of the different concepts from JSON concepts files"),
         SubProgram(name='concepts2graphs',
                    description="Converts JSON concepts files into JSON graph files"),
         SubProgram(name='graphs2vectors',
@@ -42,13 +42,14 @@ class SubProgramLoader(metaclass=Singleton):
     def available_names(self):
         return [prg.name for prg in self._SUB_PROGRAMS]
 
-    def load_subprogram_class(self, name) -> ClassVar:
+    @staticmethod
+    def load_subprogram_class(name) -> ClassVar:
         if name == 'texts2concepts':
             from .texts2concepts import Texts2Concepts
             return Texts2Concepts
-        elif name == 'concepts2types':
-            from .concepts2types import Concepts2Types
-            return Concepts2Types
+        elif name == 'concepts2info':
+            from .concepts2info import Concepts2Info
+            return Concepts2Info
         elif name == 'concepts2graphs':
             from .concepts2graphs import Concept2Graphs
             return Concept2Graphs
