@@ -10,7 +10,7 @@ import batchprocessing.semantic.conceptsEnrichment as ConceptsEnrichment
 import batchprocessing.semantic.graphCreation as GraphCreation
 import batchprocessing.semantic.graphVectorization as GraphVectorization
 from parsers.preprocessing.text import TextPreprocessor
-from parsers.semantic.conceptExtractors import DBpediaSpotlightClient, EntitiesTypesRetriever, \
+from parsers.semantic.dbpediaClients import DBpediaSpotlightClient, EntitiesTypesRetriever, \
     LinksCountEntitiesRetriever
 from parsers.semantic.graphs.builders import NetworkXGraphBuilder
 from parsers.semantic.graphs.ontologies import OntologyManager

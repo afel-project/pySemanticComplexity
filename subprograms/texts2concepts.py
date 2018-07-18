@@ -6,7 +6,7 @@ from typing import Optional
 
 import batchprocessing.semantic.conceptExtraction as ConceptsExtraction
 from parsers.preprocessing.text import TextPreprocessor
-from parsers.semantic.conceptExtractors import DBpediaSpotlightClient
+from parsers.semantic.dbpediaClients import DBpediaSpotlightClient
 from utils.commons import BatchProcess
 
 LOG = logging.getLogger(__name__)
