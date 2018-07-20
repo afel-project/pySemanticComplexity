@@ -35,8 +35,7 @@ def get_concepts_uris_information(concepts_uris: Union[Iterable[str], Sized], ty
     LOG.info("%d links count and %d types collections found" % (len(c_links), len(c_types)))
     LOG.info("Building information dictionnary...")
     info = dict()
-    uris = set(c_types.keys()) | set(c_links.keys())
-    for uri in uris:
+    for uri in concepts_uris:
         links = c_links.get(uri)
         inlinks = links.inlinks if links is not None else 0
         outlinks = links.outlinks if links is not None else 0

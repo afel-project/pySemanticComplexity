@@ -4,8 +4,6 @@ from argparse import Namespace, ArgumentParser
 from typing import Optional
 
 import batchprocessing.synlex.stanfordSynLex as StanfordSynLex
-from parsers.lexical.stanford import ANCStanfordLexicalTransformer, BNCStanfordLexicalTransformer
-from parsers.syntactic.stanford import StanfordSyntacticTransformer
 from utils.commons import BatchProcess
 from utils.stanfordResources import MemoryAllocationRule
 
@@ -35,7 +33,6 @@ class Texts2synLexVectors(BatchProcess):
         return parser
 
     def _run(self, args: Namespace) -> Optional[int]:
-
         # Setting memory allocation
         mar = MemoryAllocationRule()
         mar.postagger = args.mem_postagger

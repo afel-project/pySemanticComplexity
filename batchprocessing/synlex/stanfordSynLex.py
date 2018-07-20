@@ -24,7 +24,7 @@ def file_to_vector(filename: str, text_preprocessor: TextPreprocessor,
                    lexical_transformer: StanfordLexicalTransformer) -> np.ndarray:
     LOG.info("Cleaning text")
     with open(filename, 'r') as f:
-        text = text_preprocessor.clean_text(f.read())
+        text = "\n".join(text_preprocessor.process_to_paragraphs(f.read()))
     LOG.info("Computing syntaxtic features...")
     syntactic_features = syntactic_transformer.compute_features(text)
     LOG.info("Computing lexical features")

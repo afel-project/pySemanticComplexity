@@ -53,7 +53,6 @@ class StanfordSyntacticTransformer(BaseEstimator):
         parsed_text = lex_parser.parse(text, is_file_name=self.file_names)
         # Compute the number of words
         words_count = self._compute_words_count(parsed_text)
-        print("WORD COUNT", words_count)
         # Compute the patterns
         patterns_count = self._compute_patterns_count(parsed_text)
         # Compute the complexity features

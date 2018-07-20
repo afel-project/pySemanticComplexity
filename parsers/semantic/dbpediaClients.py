@@ -9,6 +9,7 @@ from typing import Iterable, Sized, Union, Dict, List, Set, Tuple, Any, Optional
 import numpy as np
 import requests as rqst
 from SPARQLWrapper import SPARQLWrapper, JSON
+from SPARQLWrapper.SPARQLExceptions import EndPointInternalError
 
 from .model import DBpediaResource, AnnotationScore
 
@@ -93,30 +94,6 @@ ORDER BY ?subject ?type
         self.max_entities_per_query = max_entities_per_query
         self.nice_to_server = nice_to_server
         self.max_rows_header_name = 'x-sparql-maxrows'
-
-    ''' DEPRECATED
-    def retrieve_and_enhance_resources(self, resources: Iterable[DBpediaResource]) -> Iterable[DBpediaResource]:
-        """
-        For a collection of DBpedia resources, retrieve all their types, add them to the resources and return
-        the enhanced resources.
-        :param resources: the DBpedia resources
-        :return: the DBpedia resources
-        """
-        concepts_types = self.retrieve_resource_types(resources)
-        for rsc in resources:
-            rsc.types = concepts_types.get(rsc.uri, rsc.types)
-        return resources
-
-    def retrieve_resource_types(self, resources: Iterable[DBpediaResource]) -> Dict[str, Set[str]]:
-        """
-        For a collection of DBpedia resources, retrieve all their types and return a map
-        of resource IRI - List of types IRI.
-        :param resources: the collection of DBpedia resources
-        :return: a dictionnary of resource uri - List of types IRI
-        """
-        raw_concepts = set(rsc.uri for rsc in resources)
-        return self.retrieve_types_from_resource_iris(raw_concepts)
-    '''
 
     def retrieve_types_from_entities_iris(self, resources_iris: Union[Iterable[str], Sized]) -> Dict[str, Set[str]]:
         """
@@ -217,9 +194,14 @@ EntityCount = namedtuple('EntityCount', ['inlinks', 'outlinks'])
 
 
 class LinksCountEntitiesRetriever:
-    _QUERY_LINK_TEMPLATE_BASE = """select ?entity (COUNT(?subject) AS ?nInLinks) (COUNT(?object) AS ?nOutLinks)
+    _QUERY_LINK_IN_TEMPLATE_BASE = """select ?entity (COUNT(?subject) AS ?nLinks)
 WHERE {
 ?subject ?p1 ?entity .
+FILTER(?entity IN (%s)) .
+}
+GROUP BY ?entity"""
+    _QUERY_LINK_OUT_TEMPLATE_BASE = """select ?entity (COUNT(?object) AS ?nLinks)
+WHERE {
 ?entity ?p2 ?object .
 FILTER(?entity IN (%s)) .
 }
@@ -233,13 +215,12 @@ GROUP BY ?entity"""
     def retrieve_entities_links_count(self, entities_iris: Union[Iterable[str], Sized]) -> Dict[str, EntityCount]:
         if not hasattr(entities_iris, '__getitem__'):
             entities_iris = list(entities_iris)
-        sub_entities_iris_gen = (entities_iris[i:i+self.max_entities_per_query] for i in
+        sub_entities_iris_gen = (entities_iris[i:i + self.max_entities_per_query] for i in
                                  range(0, len(entities_iris), self.max_entities_per_query))
         links_count = dict()
         i = 0
         for sub_entities_iris in sub_entities_iris_gen:
-            query = self._create_query(sub_entities_iris)
-            sub_links_count = self._execute_query(query)
+            sub_links_count = self._retrieve_sub_entities_links_count(sub_entities_iris)
             links_count.update(sub_links_count)
             if self.nice_to_server is True or self.nice_to_server == i:
                 t = np.random.randint(1000) / 1000
@@ -251,7 +232,29 @@ GROUP BY ?entity"""
         assert all(links_count.get(iri) is not None for iri in entities_iris)
         return links_count
 
-    def _execute_query(self, query: str) -> Dict[str, EntityCount]:
+    def _retrieve_sub_entities_links_count(self, entities_iris: Union[Iterable[str], Sized]) -> Dict[str, EntityCount]:
+        try:
+            in_query = self._create_in_query(entities_iris)
+            links_in_dict = self._execute_query(in_query)
+            out_query = self._create_out_query(entities_iris)
+            links_out_dcit = self._execute_query(out_query)
+            links_count = dict()
+            for iri in entities_iris:
+                links_count[iri] = EntityCount(inlinks=links_in_dict.get(iri, 0), outlinks=links_out_dcit.get(iri, 0))
+            return links_count
+        except EndPointInternalError:
+            if len(entities_iris) > 1:
+                LOG.warning("EndPointInternalError received for multiple iris. Trying to request them one by one...")
+                links_count = dict()
+                for iri in entities_iris:
+                    links_count.update(self._retrieve_sub_entities_links_count([iri]))
+                return links_count
+            else:
+                entity = list(entities_iris)[0]
+                LOG.warning("Timeout received for single iri %s. Set it to 0." % entity)
+                return {entity: EntityCount(0, 0)}
+
+    def _execute_query(self, query: str) -> Dict[str, int]:
         sparql = SPARQLWrapper(self.sparql_endpoint)
         sparql.setQuery(query)
         sparql.setReturnFormat(JSON)
@@ -263,69 +266,14 @@ GROUP BY ?entity"""
         res = dict()
         for line in data['results']['bindings']:
             iri = line['entity']['value']
-            nb_in_links = line['nInLinks']['value']
-            nb_out_links = line['nOutLinks']['value']
-            res[iri] = EntityCount(inlinks=nb_in_links, outlinks=nb_out_links)
+            nb_links = line['nLinks']['value']
+            res[iri] = nb_links
         return res
 
     @classmethod
-    def _create_query(cls, entities_iris: Iterable[str]) -> str:
-        return cls._QUERY_LINK_TEMPLATE_BASE % ", ".join(("<%s>" % iri for iri in entities_iris))
+    def _create_in_query(cls, entities_iris: Iterable[str]) -> str:
+        return cls._QUERY_LINK_IN_TEMPLATE_BASE % ", ".join(("<%s>" % iri for iri in entities_iris))
 
-
-class OldLinksCountEntitiesRetriever:
-    _QUERY_LINK_IN_TEMPLATE_BASE = """select (COUNT(?subject) AS ?nLinks) 
-WHERE {
-    ?subject ?predicate <%s> .
-}
-"""
-    _QUERY_LINK_OUT_TEMPLATE_BASE = """select (COUNT(?object) AS ?nLinks) 
-WHERE {
-    <%s> ?predicate ?object .
-}
-"""
-
-    def __init__(self, sparql_endpoint: str, nice_to_server: bool = False):
-        self.sparql_endpoint = sparql_endpoint
-        self.nice_to_server = nice_to_server
-
-    def retrieve_entities_links_count(self, entities_iris: Iterable[str]) -> Dict[str, EntityCount]:
-        entity_links_count = dict()
-        i = 0
-        for entity_irit in entities_iris:
-            nb_links_in, nb_links_out = self.retrieve_entity_links_count(entity_irit)
-            entity_links_count[entity_irit] = EntityCount(inlinks=nb_links_in, outlinks=nb_links_out)
-            if self.nice_to_server is True or self.nice_to_server == i:
-                t = np.random.randint(1000) / 1000
-                time.sleep(t)
-                i = 0
-            else:
-                i += 1
-        return entity_links_count
-
-    def retrieve_entity_links_count(self, entity_iri: str) -> Tuple[int, int]:
-        query_in = self._create_link_in_query(entity_iri)
-        nb_links_in = self._execute_query(query_in)
-        query_out = self._create_link_out_query(entity_iri)
-        nb_links_out = self._execute_query(query_out)
-        return nb_links_in, nb_links_out
-
-    def _execute_query(self, query: str) -> int:
-        sparql = SPARQLWrapper(self.sparql_endpoint)
-        sparql.setQuery(query)
-        sparql.setReturnFormat(JSON)
-        query_res = sparql.query()
-        # Assert max row indicator is absent
-        assert query_res.info().get('x-sparql-maxrows') is None
-        # Convert and parse results
-        data = query_res.convert()
-        try:
-            return int(data['results']['bindings'][0]['nLinks']['value'])
-        except (KeyError, IndexError):
-            return -1
-
-    def _create_link_in_query(self, entity_iri) -> str:
-        return self._QUERY_LINK_IN_TEMPLATE_BASE % entity_iri
-
-    def _create_link_out_query(self, entity_iri) -> str:
-        return self._QUERY_LINK_OUT_TEMPLATE_BASE % entity_iri
+    @classmethod
+    def _create_out_query(cls, entities_iris: Iterable[str]) -> str:
+        return cls._QUERY_LINK_OUT_TEMPLATE_BASE % ", ".join(("<%s>" % iri for iri in entities_iris))

@@ -148,7 +148,7 @@ class NetworkxGraphTransformer(GraphTransformer):
                 if attrs.get(attribute) is None:
                     LOG.warning("Resource node without %s (node's attributes: %s)" % (attribute, str(attrs.keys())))
                 else:
-                    stat_list.append(attrs.get(attribute))
+                    stat_list.append(int(attrs.get(attribute)))
         return np.array([np.mean(stats['nbTypes']), np.std(stats['nbTypes']),
                          np.mean(stats['nbLinksIn']), np.std(stats['nbLinksIn']),
                          np.mean(stats['nbLinksOut']), np.std(stats['nbLinksOut'])])

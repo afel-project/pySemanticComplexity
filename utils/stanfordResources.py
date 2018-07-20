@@ -14,14 +14,14 @@ __all__ = ['StandfordJavaProgram', 'PosTagger', 'LexParser', 'TRegexCounter', 'M
 
 
 class Singleton(type):
-    def __init__(self, *args, **kwargs):
-        self.__instance = None
+    def __init__(cls, *args, **kwargs):
+        cls.__instance = None
         super().__init__(*args, **kwargs)
 
-    def __call__(self, *args, **kwargs):
-        if self.__instance is None:
-            self.__instance = super().__call__(*args, **kwargs)
-        return self.__instance
+    def __call__(cls, *args, **kwargs):
+        if cls.__instance is None:
+            cls.__instance = super().__call__(*args, **kwargs)
+        return cls.__instance
 
 
 class MemoryAllocationRule(metaclass=Singleton):
@@ -45,7 +45,7 @@ class MemoryAllocationRule(metaclass=Singleton):
         return self._tregex
 
     @tregex.setter
-    def teregex(self, value):
+    def tregex(self, value):
         self._tregex = self._check_mem_val(value)
 
     @property

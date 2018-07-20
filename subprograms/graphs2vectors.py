@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 """Batch utility to convert graphs json files into a single csv file"""
-import glob
 import logging
-import os
 from argparse import Namespace, ArgumentParser
 from typing import Optional, Set
 
@@ -53,9 +51,6 @@ class GraphsToSemanticVectors(BatchProcess):
         LOG.info("Creating datasets")
         dataset = GraphVectorization.compute_vectors_from_dir(dir_in, graph_reader, transformer, num_cores,
                                                               ext_in, backend, to_dataset=True)
-        LOG.info("Adding filenames to dataset")
-        dataset.insert(0, 'filename', [os.path.splitext(os.path.basename(file_in))[0]
-                                       for file_in in glob.glob(os.path.join(dir_in, '*' + ext_in))])
 
         LOG.info("Writing dataset")
         dataset.to_csv(csv_filename, index=False)
