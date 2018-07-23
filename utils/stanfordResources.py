@@ -107,7 +107,7 @@ class StandfordJavaProgram(metaclass=ABCMeta):
 
 
 class TRegexCounter(StandfordJavaProgram):
-    _BASE_FOLDER = os.path.join(VENDOR_DIR_PATH, 'stanford/tregex')
+    _BASE_FOLDER = os.path.join(VENDOR_DIR_PATH, 'stanford/L2SCA-2016-06-30')
 
     def __init__(self):
         super().__init__(
@@ -133,7 +133,7 @@ class TRegexCounter(StandfordJavaProgram):
 
 
 class LexParser(StandfordJavaProgram):
-    _BASE_FOLDER = os.path.join(VENDOR_DIR_PATH, 'stanford/parser')
+    _BASE_FOLDER = os.path.join(VENDOR_DIR_PATH, 'stanford/L2SCA-2016-06-30/stanford-parser-full-2014-01-04')
 
     def __init__(self):
         super().__init__(
@@ -160,7 +160,7 @@ class LexParser(StandfordJavaProgram):
 
 
 class PosTagger(StandfordJavaProgram):
-    _BASE_FOLDER = os.path.join(VENDOR_DIR_PATH, 'stanford/pos_tagger')
+    _BASE_FOLDER = os.path.join(VENDOR_DIR_PATH, 'stanford/stanford-postagger-full-2018-02-27')
     _MODEL_EXT = '.tagger'
 
     def __init__(self, model='english-left3words-distsim'):
