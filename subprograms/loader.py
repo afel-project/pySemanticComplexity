@@ -34,6 +34,8 @@ class SubProgramLoader(metaclass=Singleton):
                    description="Create a CSV file of semantic complexity metrics from JSON graph files"),
         SubProgram(name='printGraph',
                    description="Draw a graph from a JSON graph file"),
+        SubProgram(name='texts2synLexVectors',
+                   description="Converts raw texts files into syntactic-lexical vectors."),
     ]
 
     def available_subprograms(self):
@@ -62,5 +64,8 @@ class SubProgramLoader(metaclass=Singleton):
         elif name == 'texts2vectors':
             from .text2vectors import Texts2Vectors
             return Texts2Vectors
+        elif name == 'texts2synLexVectors':
+            from .texts2synLexVectors import Texts2synLexVectors
+            return Texts2synLexVectors
         else:
             raise ValueError('Bad program name')

@@ -63,7 +63,7 @@ def texts_to_entities(texts: Iterable[str], text_preprocessor: TextPreprocessor,
 
 
 def dir_to_entities(dir_in: str, text_preprocessor: TextPreprocessor, client: DBpediaSpotlightClient,
-                    n_jobs: int, backend: str = 'multiprocessing', in_ext: str = ".str") -> List[TextConcepts]:
+                    n_jobs: int, backend: str = 'multiprocessing', in_ext: str = ".txt") -> List[TextConcepts]:
     backend = safe_concurrency_backend(backend, urllib_used=True)
 
     return Parallel(n_jobs=n_jobs, verbose=5, backend=backend)(
@@ -73,7 +73,7 @@ def dir_to_entities(dir_in: str, text_preprocessor: TextPreprocessor, client: DB
 
 def dir_to_entities_json_files(dir_in: str, dir_out: str, text_preprocessor: TextPreprocessor,
                                client: DBpediaSpotlightClient, n_jobs: int, backend: str = 'multiprocessing',
-                               force_rewrite: bool = False, in_ext: str = ".str", out_ext: str = ".json"):
+                               force_rewrite: bool = False, in_ext: str = ".txt", out_ext: str = ".json"):
     backend = safe_concurrency_backend(backend, urllib_used=True)
 
     file_names = ((file_in, os.path.join(dir_out, os.path.splitext(os.path.basename(file_in))[0] + out_ext))

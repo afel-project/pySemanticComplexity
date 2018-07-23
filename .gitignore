@@ -112,3 +112,6 @@ temp/
 
 # mac OS files
 **/.DS_Store
+
+# stanford vendo dir
+vendor/stanford

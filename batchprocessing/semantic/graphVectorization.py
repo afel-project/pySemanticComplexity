@@ -37,5 +37,11 @@ def compute_vectors_from_dir(dir_in: str, graph_reader: Callable[[str], Any], tr
                              n_jobs: int, ext_in: str = ".json", backend: str = 'multiprocessing',
                              to_dataset: bool = False):
     backend = safe_concurrency_backend(backend)
-    gen = (graph_reader(filename) for filename in glob.glob(os.path.join(dir_in, '*' + ext_in)))
-    return compute_vectors(gen, transformer, n_jobs, backend, to_dataset)
+    filepaths = list(glob.glob(os.path.join(dir_in, '*' + ext_in)))
+    gen = (graph_reader(filepath) for filepath in filepaths)
+    res = compute_vectors(gen, transformer, n_jobs, backend, to_dataset)
+    if to_dataset:
+        LOG.info("Adding filenames to dataset")
+        filenames = [os.path.splitext(os.path.basename(filepath))[0] for filepath in filepaths]
+        res.insert(0, 'filename', filenames)
+    return res
