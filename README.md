@@ -1,70 +1,68 @@
-# python semantic complexity text analyzer
-Contributors: Rémi Venant
+# Python semantic complexity text analyzer
 
-pysemcom (pySemanticComplexity) allow to compute from a bunch of different text files lexical,
-syntactical and semantic complexity as vectors for each of these texts.
+Contributors:
+- [Rémi Venant](https://github.com/theDartagnan), main author & developer
+- [Aldan Creo](https://github.com/acmcmc), documentation contributions
 
-Semantic complexity relies on DBpedia Entity Recognition Graph computation based on multiple ontologies used in DBPedia.
-PyComplex offers several subprograms to process multiples files in parallels.
+pysemcom (pySemanticComplexity) allows to compute **vectors** representing lexical, syntactic and **semantic complexity** for a set of given texts.
 
-One of these subprogram is the full pipeline of translation from texts to vectors of semantic complexity.
-For each text file processed in parallel, the pipeline first clean and split text in paragraphs,
-and identify the DBpedia entity with the use of a Spotlight REST Api. Each entity is then enrich with its types by
-queriyng a DBpedia SPARQL endpoint. Each list of entities (for each document) is then processed in parallel to compute
-a graph of concept, conposed of the entities, their types and the hierachy of ontology classes that define these types.
-Finally each graph is vectorized in parallel. Note that three ontologies are used so far: Schema, DBpedia ontology and
-Yago. The result csv file is composed one line per fil, each of them being composed of the file name (without its
-extension) and the several complexity features.
+The measure of semantic complexity is based on the DBpedia Entity Recognition Graph computation, which is based on several ontologies used in DBPedia.
+PyComplex provides several subroutines to process multiple files in parallel.
 
+Most importantly, one of these subprograms is the complete pipeline of translation from texts to vectors of semantic complexity.
+For each text file processed in parallel, the pipeline first cleans up the text, splits it into paragraphs, and identifies the DBpedia entity using a Spotlight REST API.
+Each entity is then enriched with its types by querying a DBpedia SPARQL endpoint.
+Each list of entities (for each document) is then processed in parallel to compute a concept graph composed of the entities, their types, and the hierarchy of ontology classes that define those types.
+Finally, each graph is vectorized in parallel.
+Note that three ontologies are used so far: Schema, DBpedia and Yago. The resulting `csv` file is composed of one line per file, each having the file name (without extension) and the different complexity features.
 
 ## 1. Repository structure
-This respository is structed as follow:
+This repository is structured as follows:
 
-- pysemcom.py: the main application entrypoint for the analyzer (usable in command line)
-- batch, dpedia, utils: the different python packages for the application
-- vendor: local resources from other providers. Only the ontologies used in DBpedia so far
-- pyComplex: the python packages and programs to compute syntactic, lexical and semantic complexity of a text.
-- dbpedia-spotlight-docker: a docker-compose file to manage a DBpedia Spotlight server
-- requirements.txt: the python package requirement for the afelTraces2rdf application
-- README.md: this file
+- `pysemcom.py`: the main application entry point for the analyzer (usable from the command line)
+- `batch`, `dpedia`, `utils`: the various python packages for the application
+- `vendor`: local resources from other vendors. Only the ontologies used in DBpedia so far
+- `pyComplex`: the python packages and programs for calculating the syntactic, lexical and semantic complexity of a text.
+- `dbpedia-spotlight-docker': a docker-compose file for managing a DBpedia Spotlight server.
+- requirements.txt': the python package requirements for the afelTraces2rdf application
 
 ## 2. Requirements
-The afelTraces2rdf application relies on the following softwares:
+We require `python >= 3.6`.
+Optionally, for syntactic and lexical parsing, you can add the Stanford parser (see section 3.1).
 
-- python >= 3.6
-- pip
-- Stanford parser, tregex, lca & pos tagger (optional, for syntactic and lexical parsing only. See 4.1)
+The required packages are listed in `requirements.txt`, and you can install them by running:
 
-The required packages for the application are listed in the requirements.txt file.
-An automatic installation of the packages can be achieved by the following command, to be executed within the repository folder:
+```
+pip install -r requirements.txt
+```
 
-    pip install -r requirements.txt
+__Working within a virtual environment is recommended.__
 
-__Working with a virtual environment is recommended.__
+## 3. Setup
 
-## 4. Setup
+- Go to `vendor/dbpedia/` and decompress `yago_taxonomy.ttl.bz2` into `yago_taxonomy.ttl` within the same directory
+- Install the Python dependencies as described in section 2
 
-- Go to vendor/dbpedia and decompress yago_taxonomy.ttl.bz2 into yago_taxonomy.ttl within the same directory
-- Install the python dependencies if it is not already done (see section 2. of this document)
-
-### 4.1 Stanford tool
-- Go to the vendor/ directory and create the directory "stanford".
-- Go to the stanford/ directory.
+### 3.1 Stanford tool
+- Go to the `vendor/` directory and create the directory `stanford/`.
+- Go to the `stanford/` directory.
 - Download the following files within that directory:
 	- [Lexical Complexity Analyzer](http://www.personal.psu.edu/xxl13/downloads/lca.tgz)
 	- [Syntactic Complexity Analyzer](http://personal.psu.edu/xxl13/downloads/L2SCA-2016-06-30.tgz)
 	- [Pos tagger](https://nlp.stanford.edu/software/stanford-postagger-full-2018-02-27.zip)
 - Decompress the 3 archives (eg.: tar -xvzf lca.tgz)
 - You should have the following sub-directories: 
-	- lca (with at least anc_all_count.txt and bnc_all_count.txt files)
-	- L2SCA-2016-06-30 (with at least standford-tregex.jar file)
-		- stanford-parser-full-2014-01-04 (with at least stanford-parser.jar file)
-	-stanford-postagger-full-2018-02-27 (with at least stanford-postagger.jar file and model dir)
+	- `lca` (with at least `anc_all_count.txt` and `bnc_all_count.txt` files)
+	- `L2SCA-2016-06-30` (with at least `standford-tregex.jar` file)
+		- `stanford-parser-full-2014-01-04` (with at least `stanford-parser.jar` file)
+	- `stanford-postagger-full-2018-02-27` (with at least `stanford-postagger.jar` file and `model` dir)
 
-## 3. Use of the analyzer
-The analyzer can be launched from a terminal. Inside the repository folder, one can run the following command to get the help:
+## 4. Use of the analyzer
+The analyzer can be launched from a terminal. Inside the repository folder, you can get help by running:
 
-    python pysemcom.py --help
+```
+python pysemcom.py --help
+```
 
-## 4. Licence
-The python text complexity analyzer is distributed under the [Apache Licence V2](https://www.apache.org/licenses/LICENSE-2.0). Please attribute Rémi Venant through the [AFEL Project](http://afel-project.eu)* when reusing and redistributing this code.
+## 5. Licence
+This package is distributed under the [Apache Licence V2](https://www.apache.org/licenses/LICENSE-2.0). Please attribute Rémi Venant through the [AFEL Project](http://afel-project.eu) when reusing and redistributing this code.
